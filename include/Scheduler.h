@@ -5,13 +5,8 @@
 #include <map>
 #include <tuple>
 #include <iostream>
+#include "Record.h"
 #include "Network.h"
-
-struct Record {
-    int t;      // 时间
-    int x, y;   // UAV坐标
-    double z;   // 传输速率
-};
 
 class Scheduler {
 private:
