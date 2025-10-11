@@ -1,6 +1,5 @@
 *.o
 *.a
 build/*
-data/*
 output/*
 .vscode/*

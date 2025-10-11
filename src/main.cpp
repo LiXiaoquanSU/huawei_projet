@@ -7,7 +7,7 @@
 int main() {
     std::cout << "=== UAV Network Scheduler Simulation ===" << std::endl;
 
-    const std::string inputDir = "../data";
+    const std::string inputDir = "../intput";
     const std::string outputDir = "../output";
 
     // 1. 获取输入文件列表

@@ -12,4 +12,4 @@ mkdir build & cd build & cmake .. & make & cd ..
 cd build & ./uav_scheduler
 ```
 
-you will find the data in flode output
+you will find the intput in flode output
