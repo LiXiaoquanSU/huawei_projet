@@ -1,1 +1,0 @@
-/usr/bin/c++ CMakeFiles/uav_scheduler.dir/src/Flow.cpp.o CMakeFiles/uav_scheduler.dir/src/Network.cpp.o CMakeFiles/uav_scheduler.dir/src/Scheduler.cpp.o CMakeFiles/uav_scheduler.dir/src/UAV.cpp.o CMakeFiles/uav_scheduler.dir/src/Utils.cpp.o CMakeFiles/uav_scheduler.dir/src/main.cpp.o -o uav_scheduler 
