@@ -10,13 +10,15 @@ void Network::loadFromInput(std::istream& in) {
     // 第一行：M, N, FN, T
     in >> M >> N >> FN >> T;
 
-    // 读取 M*N 个 UAV
+   // 读取 M*N 个 UAV，并自动编号
     for (int i = 0; i < M * N; ++i) {
         int x, y, phi;
         double B;
         in >> x >> y >> B >> phi;
-        uavs.emplace_back(x, y, B, phi);
+        int id = i;  // 自动编号（从0开始）
+        uavs.emplace_back(id, x, y, B, phi);
     }
+    
 
     // 读取 FN 条 Flow
     for (int i = 0; i < FN; ++i) {

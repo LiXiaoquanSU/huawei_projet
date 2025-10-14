@@ -2,50 +2,59 @@
 #include <algorithm>
 #include <iomanip>
 #include <cmath>
+#include "PathFinder.h"
 
 Scheduler::Scheduler(Network& net) : network(net) {}
 
 void Scheduler::run() {
-    for (const auto& flow : network.flows) {
-        double remaining = flow.size;
-        std::vector<Record> recs;
+    std::cout << "\n=== PathFinder A* 全时刻测试模式启动 ===\n";
 
-        // 从 startTime 开始调度
-        for (int t = flow.startTime; t < network.T && remaining > 0; ++t) {
-            UAV* bestUav = nullptr;
-            double bestBw = 0.0;
+    PathFinder pathFinder;
 
-            // 在落地区域内寻找带宽最高的UAV
-            for (auto& uav : network.uavs) {
-                if (flow.inLandingRange(uav.x, uav.y)) {
-                    double bw = uav.bandwidthAt(t);
-                    if (bw > bestBw) {
-                        bestBw = bw;
-                        bestUav = &uav;
-                    }
-                }
-            }
-
-            if (bestUav && bestBw > 0) {
-                double send = std::min(bestBw, remaining);
-                remaining -= send;
-                recs.push_back({t, bestUav->x, bestUav->y, send});
-            }
+    for (int t = 0; t < network.T; ++t) {
+        // 1️⃣ 筛选当前时刻已开始的 flow
+        std::vector<Flow> activeFlows;
+        for (const auto& f : network.flows) {
+            if (f.startTime <= t)
+                activeFlows.push_back(f);
         }
 
-        scheduleRecords[flow.id] = recs;
+        // 2️⃣ 如果当前时刻没有流，跳过
+        if (activeFlows.empty()) {
+            std::cout << "\n--- 时刻 t = " << t << " --- 无活动流\n";
+            continue;
+        }
+
+        // 3️⃣ 调用 PathFinder
+        auto lignes = pathFinder.findCandidatePaths(network, activeFlows, t);
+
+        // 4️⃣ 打印输出
+        std::cout << "\n--- 时刻 t = " << t << " ---\n";
+        std::cout << "活动流数量: " << activeFlows.size()
+                  << " | 路径数量: " << lignes.size() << "\n\n";
+
+        for (const auto& l : lignes) {
+            std::cout << "Flow #" << l.flowId
+                      << " | Score=" << std::fixed << std::setprecision(2) << l.score
+                      << " | Bw=" << l.bandwidth
+                      << " | UAV Path: ";
+
+            for (size_t i = 0; i < l.pathUavIds.size(); ++i) {
+                std::cout << l.pathUavIds[i];
+                if (i < l.pathUavIds.size() - 1) std::cout << "->";
+            }
+            std::cout << "\n";
+        }
     }
+
+    std::cout << "\n=== PathFinder 全时刻测试结束 ===\n";
 }
 
 void Scheduler::outputResult(std::ostream& out) const {
-    for (const auto& [flowId, recs] : scheduleRecords) {
-        out << flowId << " " << recs.size() << "\n";
-        for (const auto& r : recs) {
-            // 判断是否为整数
-            if (std::fabs(r.z - std::round(r.z)) < 1e-6)
-                out << r.t << " " << r.x << " " << r.y << " " << (int)std::round(r.z) << "\n";
-            else
-                out << r.t << " " << r.x << " " << r.y << " " << std::fixed << std::setprecision(2) << r.z << "\n";
+    for (const auto& [flowId, records] : scheduleRecords) {
+        out << flowId << " " << records.size() << "\n";
+        for (const auto& record : records) {
+            out << record.t << " " << record.x << " " << record.y << " " << record.z << "\n";
         }
     }
 }

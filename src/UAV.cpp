@@ -1,9 +1,9 @@
 #include "UAV.h"
 
-UAV::UAV() : x(0), y(0), B(0), phi(0) {}
+UAV::UAV() : id(-1), x(0), y(0), B(0), phi(0) {}
 
-UAV::UAV(int x, int y, double B, int phi)
-    : x(x), y(y), B(B), phi(phi) {}
+UAV::UAV(int id, int x, int y, double B, int phi)
+    : id(id), x(x), y(y), B(B), phi(phi) {}
 
 // 根据题目定义：周期10秒
 // 0,1,8,9 -> 0 Mbps; 2,7 -> B/2; 3-6 -> B

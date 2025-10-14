@@ -5,13 +5,14 @@
 
 class UAV {
 public:
+    int id;     // 唯一编号（从0开始）
     int x;      // 坐标X
     int y;      // 坐标Y
     double B;   // 峰值带宽
     int phi;    // 相位 (0~9)
 
     UAV();
-    UAV(int x, int y, double B, int phi);
+    UAV(int id, int x, int y, double B, int phi);
 
     // 获取该UAV在t秒时刻的带宽（根据题目周期模型）
     double bandwidthAt(int t) const;
