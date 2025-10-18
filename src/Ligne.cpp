@@ -28,9 +28,7 @@ Ligne::Ligne()
     : flowId(0), t(0), t_start(0),
       bandwidth(0), q(0), Q_total(0),
       distance(0), Tmax(10.0),
-      landed(false), score(0.0),
-      prevLandingId(-1), landingChangeCount(1),
-      LandingPenalty(0.0) {}
+      landed(false), score(0.0) {}
 
 // ======================== 得分计算函数 ========================
 void Ligne::computeScore(int currentX, int currentY,
@@ -63,20 +61,8 @@ void Ligne::computeScore(int currentX, int currentY,
         Dist = (effectiveQ / Q_total) * std::pow(2.0, -alpha * effectiveDist);
     }
 
-    // ===== 4️⃣ 落点变化惩罚 =====
-    LandingPenalty = 0.0;
-    if (landed && !pathUavIds.empty()) {
-        int currentLandingId = pathUavIds.back();
-
-        if (prevLandingId != -1 && currentLandingId != prevLandingId) {
-            ++landingChangeCount;
-            // 计算惩罚项 Δpenalty(k) = 10 * (1/(k-1) - 1/k)
-            LandingPenalty = 10.0 * ((1.0 / (landingChangeCount - 1)) - (1.0 / landingChangeCount));
-        }
-    }
-
-    // ===== ✅ 综合得分（含落点惩罚） =====
-    score = 100.0 * (0.4 * U2G + 0.2 * Delay + 0.3 * Dist) - LandingPenalty;
+    // ===== ✅ 综合得分（外部传入落点惩罚） =====
+    score = 100.0 * (0.4 * U2G + 0.2 * Delay + 0.3 * Dist);
 }
 
 // ======================== 导出输出函数 ========================

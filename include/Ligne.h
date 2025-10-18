@@ -4,16 +4,16 @@
 #include <vector>
 #include <cmath>
 #include <tuple>
-//把落点记录换到SlicePlanner
+
 /**
  * @brief 表示单个时间刻 (t) 内的一条 UAV 传输路径
  * 
  * Tmax 为流的最大传输时延（单位：秒）
  * 
- * 新增：
- *  - prevLandingId：上一落点 UAV 的 id（-1 表示无）
- *  - landingChangeCount：累计落点变化次数（至少为1）
- *  - LandingPenalty：本次变化带来的惩罚值（仅在落点变化时更新）
+ * 说明：
+ *  - Ligne 不再记录落点变化状态；
+ *  - 由 SlicePlanner 计算落点惩罚并传入；
+ *  - computeScore() 可接收外部落点惩罚参数。
  */
 struct Ligne {
     // ================= 基本属性 =================
@@ -32,15 +32,13 @@ struct Ligne {
     // ================= 状态与评分 =================
     bool landed;                  // 是否已到达落地点
     double score;                 // 本路径得分
-    int prevLandingId;            // 上一落点 UAV id
-    int landingChangeCount;       // 落点变化次数
-    double LandingPenalty;        // 本次变化的惩罚值
 
     // ================= 构造与函数 =================
     Ligne();
 
     /**
-     * @brief 计算路径得分（包含落点变化惩罚）
+     * @brief 计算路径得分（支持外部落点惩罚参数）
+     * @param landingPenalty 落点变化惩罚值（由 SlicePlanner 计算）
      */
     void computeScore(int currentX, int currentY,
                       int landingX1, int landingY1,
@@ -50,6 +48,7 @@ struct Ligne {
 
     /**
      * @brief 导出当前路径的标准输出项 (t, endX, endY, q)
+     * @param M 网络宽度，用于将 UAV 编号转换为坐标
      */
     std::tuple<int, int, int, double> exportOutput(int M) const;
 };
