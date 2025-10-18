@@ -11,9 +11,6 @@ class Scheduler {
 private:
     Network& network;
 
-    // 每个flow对应的调度记录： flowId -> vector<Record>
-    std::map<int, std::vector<Record>> scheduleRecords;
-
 public:
     Scheduler(Network& net);
 
