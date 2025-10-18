@@ -5,11 +5,15 @@
 #include <map>
 #include <tuple>
 #include <iostream>
+#include <optional>
 #include "Network.h"
+#include "DTCube.h"
 
 class Scheduler {
 private:
     Network& network;
+    DTCubeBuilder treeBuilder;
+    std::optional<Cube> resultCube;
 
 public:
     Scheduler(Network& net);

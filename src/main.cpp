@@ -25,6 +25,17 @@ int main() {
 
         Scheduler scheduler(network);
         scheduler.run(); // 调用测试模式
+        
+        std::string outputPath = Utils::makeOutputPath(inputPath, inputDir, outputDir);
+        std::ofstream fout(outputPath);
+        if (!fout.is_open()) {
+            std::cerr << "❌ Cannot open output file: " << outputPath << std::endl;
+            return false;
+        }
+
+        scheduler.outputResult(fout);
+        std::cout << "✅ Result saved to: " << outputPath << std::endl;
+
     }
 
     return 0;
