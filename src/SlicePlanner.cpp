@@ -1,6 +1,8 @@
 #include "SlicePlanner.h"
+#include "LigneFinder.h"   
 #include <algorithm>
 #include <iostream>
+
 
 SlicePlanner::SlicePlanner(Network& net, int currentT)
     : network(net), t(currentT) {
@@ -20,26 +22,30 @@ void SlicePlanner::applyLigneUsage(const Ligne& ligne) {
     }
 }
 
+
+
 std::vector<Ligne> SlicePlanner::generateCandidateLignes() {
     std::vector<Ligne> candidates;
 
-    for (const auto& flow : network.flows) {
-        if (t < flow.startTime) continue; // 尚未开始的流跳过
+    // 创建路径搜索器（8邻接模式，可改为 FOUR_WAY）
+    LigneFinder finder(network, t, LigneFinder::EIGHT_WAY);
 
-        // 这里将来可以调用 PathFinder 或自定义算法来生成路径
-        Ligne l;
-        l.flowId = flow.id;
-        l.t = t;
-        l.t_start = flow.startTime;
-        l.Q_total = flow.size;
-        l.pathUavIds.push_back(flow.y * network.M + flow.x); // 暂定访问点
-        l.q = 0.0;
-        l.computeScore(flow.x, flow.y, flow.m1, flow.n1, flow.m2, flow.n2);
+    for (const auto& flow : network.flows) {
+        if (t < flow.startTime) continue;  // 未开始的流跳过
+
+        // ✅ 调用 LigneFinder 生成最优路径
+        Ligne l = finder.findBestPath(flow);
+
+        // ✅ 扣减路径上 UAV 带宽占用
+        applyLigneUsage(l);
+
+        // ✅ 保存到候选集
         candidates.push_back(l);
     }
 
     return candidates;
 }
+
 
 std::vector<Slice> SlicePlanner::planSlices() {
     std::vector<Slice> slices;
