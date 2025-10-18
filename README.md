@@ -12,4 +12,10 @@ mkdir build & cd build & cmake .. & make & cd ..
 cd build & ./uav_scheduler
 ```
 
+command scripts
+
+```bash
+./scripts/run_all.sh
+```
+
 you will find the intput in flode output
