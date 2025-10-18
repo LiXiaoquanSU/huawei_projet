@@ -5,11 +5,7 @@
 #include <map>
 #include <tuple>
 #include <iostream>
-#include "Record.h"
 #include "Network.h"
-#include "PathFinder.h"
-#include "SliceResolver.h"
-#include "CubeOptimizer.h"
 
 class Scheduler {
 private:
