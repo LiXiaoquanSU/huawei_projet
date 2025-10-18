@@ -4,6 +4,7 @@
 #include "Network.h"
 #include "Slice.h"
 #include "Ligne.h"
+#include "LigneFinder.h" 
 #include <vector>
 #include <map>
 
