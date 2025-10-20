@@ -1,68 +1,64 @@
-#include <iostream>
-#include <fstream>
 #include "Network.h"
-#include "Scheduler.h"
-#include "Utils.h"
+#include "Flow.h"
+#include "LigneFinder.h"
+#include <iostream>
+#include <map>
 
 int main() {
-    std::cout << "=== PathFinder A* 测试程序 ===" << std::endl;
+    std::cout << "=== LigneFinder 非首次寻路测试 ===" << std::endl;
 
-    const std::string inputDir = "../input";
-    const std::string outputDir = "../output";
+    // ---------- 构造网络 ----------
+    Network net;
+    net.M = 3; net.N = 3; net.T = 10; net.FN = 1;
 
-    auto files = Utils::listInputFiles(inputDir);
-    if (files.empty()) {
-        std::cerr << "❌ 未找到输入文件！请在 input 文件夹中放测试文件。\n";
-        return 1;
-    }
-
-    for (const auto& inputPath : files) {
-        std::cout << "\n📂 测试文件：" << inputPath << std::endl;
-
-        Network network;
-        if (!Utils::loadNetworkFromFile(inputPath, network))
-            continue;
-
-        Scheduler scheduler(network);
-        scheduler.run(); // 调用测试模式
-        
-        std::string outputPath = Utils::makeOutputPath(inputPath, inputDir, outputDir);
-        std::ofstream fout(outputPath);
-        if (!fout.is_open()) {
-            std::cerr << "❌ Cannot open output file: " << outputPath << std::endl;
-            return false;
+    // 每个 UAV 的带宽设为 10，相位 3
+    for (int y = 0; y < 3; ++y) {
+        for (int x = 0; x < 3; ++x) {
+            if(x==1 &&y==0)
+                net.uavs.emplace_back(y * 3 + x, x, y, 5, 3);
+            else
+                net.uavs.emplace_back(y * 3 + x, x, y, 10, 3);
         }
-
-        scheduler.outputResult(fout);
-        std::cout << "✅ Result saved to: " << outputPath << std::endl;
-
     }
 
-    return 0;
-    // std::cout << "=== UAV Network Scheduler Simulation ===" << std::endl;
+    // ---------- 构造流 ----------
+    // 从 (0,0) 出发，目标区域 (2,2)
+    Flow f(1, 0, 0, 0, 30, 2, 0, 2, 0);
+    net.flows.push_back(f);
 
-    // const std::string inputDir = "../intput";
-    // const std::string outputDir = "../output";
+    // ---------- 构造带宽表 ----------
+    std::map<std::pair<int,int>, double> bw;
+    for (int y = 0; y < 3; ++y)
+        for (int x = 0; x < 3; ++x)
+            bw[{x,y}] = (x == 1 && y == 0) ? 5.0 : 10.0;
 
-    // // 1. 获取输入文件列表
-    // auto files = Utils::listInputFiles(inputDir);
-    // if (files.empty()) {
-    //     std::cerr << "No input files found in " << inputDir << std::endl;
-    //     return 1;
-    // }
+    // ---------- 模拟上一次落点 ----------
+    LigneFinder::XY lastLanding = {-1,-1};   // 上次落点
+    int landingChangeCount = 0;             // 已经发生过一次落点变化
 
-    // // 2. 对每个文件执行调度
-    // for (const auto& inputPath : files) {
-    //     std::cout << "\nProcessing: " << inputPath << std::endl;
+    // ---------- 创建 LigneFinder ----------
+    double remainingData = 8.0; 
+    int current_t = 3;
+    LigneFinder finder(net, f, current_t, bw, lastLanding, landingChangeCount,remainingData);
 
-    //     Network network;
-    //     if (!Utils::loadNetworkFromFile(inputPath, network))
-    //         continue;
+    // ---------- 运行测试 ----------
+    auto result = finder.runAStarOnce();
 
-    //     std::string outputPath = Utils::makeOutputPath(inputPath, inputDir, outputDir);
-    //     Utils::runSchedulerAndSave(network, outputPath);
-    // }
-
-    // std::cout << "\n=== All scheduling tasks completed. ===" << std::endl;
-    // return 0;
+    // ---------- 输出候选结果 ----------
+    std::cout << "========== [Test Result] ==========" << std::endl;
+    if (result.empty()) {
+        std::cout << "❌ 未找到任何路径\n";
+    } else {
+        for (size_t i = 0; i < result.size(); ++i) {
+            const auto& L = result[i];
+            std::cout << "#" << i+1
+                      << " score=" << L.score
+                      << " q=" << L.q
+                      << " dist=" << L.distance
+                      << " end=(" << L.pathXY.back().first << "," << L.pathXY.back().second << ")"
+                      << " path=";
+            for (auto& [x,y] : L.pathXY) std::cout << "("<<x<<","<<y<<")->";
+            std::cout << "\n";
+        }
+    }
 }

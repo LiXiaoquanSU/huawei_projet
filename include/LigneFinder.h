@@ -25,10 +25,12 @@ public:
                 int t,
                 const std::map<XY,double>& bw,
                 const XY& lastLanding = {-1,-1},
-                int landingChangeCount = 0)
+                int landingChangeCount = 0,
+                double remainingData = -1)
         : network_(net), flow_(flow), t_(t),
           bw_(bw), lastLanding_(lastLanding),
-          landingChangeCount_(landingChangeCount) {}
+          landingChangeCount_(landingChangeCount),
+          remainingData_(remainingData) {}
 
     /**
      * @brief 运行一次 A* 搜索，返回候选路径集合
@@ -43,7 +45,7 @@ private:
 
     XY lastLanding_;          // 上一次的落点
     int landingChangeCount_;  // 落点变化次数
-
+    double remainingData_; 
     // 取指定坐标处的临时带宽
     double bwAt(int x, int y) const;
 

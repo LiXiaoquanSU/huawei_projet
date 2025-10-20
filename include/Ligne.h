@@ -25,6 +25,7 @@ struct Ligne {
     std::vector<std::pair<int,int>> pathXY;  // (x,y) 座标路径
     double distance{0.0};         // 跳数 = pathXY.size()-1
     double bandwidth{0.0};        // 当前已知瓶颈
+    double remainingD{std::numeric_limits<double>::infinity()};       // 剩余待传流量
     double q{0.0};                // 实际用于评分的“已分配速率/可传量上限”
     bool   landed{false};         // 是否已到达落地区域
     double score{0.0};            // 评分（A* 的优先级关键）
