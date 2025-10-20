@@ -63,17 +63,20 @@ huawei_projet/
 #### 3. 时刻调度层 (Slice Scheduling Layer)
 
 - **SlicePlanner** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/SlicePlanner.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/SlicePlanner.cpp): 单时刻调度规划器
-  - 管理UAV带宽矩阵
-  - 生成所有可行路径候选
-  - 选择最优路径组合
+  - 接受网络状态和时刻参数：`SlicePlanner(network, t)`
+  - 内部处理带宽约束和路径冲突检测
+  - 通过`planSlices()`生成当前时刻的所有可行Slice候选
+  - 返回优化后的Slice集合供DTCubeBuilder选择
 - **Slice** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/Slice.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/Slice.cpp): 单时刻的调度结果
   - 包含该时刻所有传输路径
   - 计算时刻总得分
 
 #### 4. 全局优化层 (Global Optimization Layer)
 
-- **DTCube** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/DTCube.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/DTCube.cpp): 决策树构建器
+- **DTCubeBuilder** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/DTCube.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/DTCube.cpp): 决策树构建器
   - 使用深度优先搜索遍历所有可能的时刻组合
+  - 累积式得分计算，避免重复评估
+  - 空时刻处理，保持时间轴连续性
   - 实现全局最优解搜索
 - **Cube** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/Cube.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/Cube.cpp): 全时段调度结果
   - 包含所有时刻的最优切片组合
@@ -97,9 +100,108 @@ huawei_projet/
 
 ### 2. 决策树构建策略
 
-采用深度优先搜索（DFS）方法构建完整的决策树。从时刻t=0开始，递归地为每个时刻生成候选切片（Slice），并探索所有可能的时刻组合路径。当到达时间终点T时，比较当前路径的累计得分与全局最优解，并据此更新最佳路径。
+DTCubeBuilder采用深度优先搜索（DFS）方法构建完整的决策树。从时刻t=0开始，递归地为每个时刻生成候选切片（Slice），并探索所有可能的时刻组合路径。核心实现通过`buildDecisionTree()`方法，采用累积式得分计算和路径回溯机制，确保找到全局最优解。
 
-该策略的核心思想是遍历整个解空间，确保找到全局最优解。通过递归回溯的方式，系统能够系统性地评估每种可能的调度方案组合。
+![](images/DTCube.png)
+
+#### 2.1 Cube与Slice层次结构
+
+决策树的核心架构如下：
+
+```
+Cube (全时段调度结果)
+  ↓ DTCube创建决策树
+SlicePlanner (单时刻调度规划)
+  ↓ 生成可行Slice
+t=0 全新可能性 Slice (包含的全新 Lignes)
+  ↓ 3个分支性
+┌─────┬─────┬─────┐
+│t=0       │t=0       │t=0       │ 
+└─────┴─────┴─────┘
+  ↓     ↓     ↓
+递归调用SlicePlanner
+从第t=1的可能性
+  ↓
+┌─────┬─────┬─────┐
+│t=1       │t=1       │t=1       │ ←→ (相互关联)
+└─────┴─────┴─────┘
+  ↓ Slice规划
+每个时刻生成多个Slice候选
+保存最大分数
+如回到原节点的分数
+```
+
+#### 2.2 决策树遍历机制
+
+**递归深度遍历：** 从t=0开始，为每个时刻生成所有可行的Slice候选方案，形成多叉树结构。
+
+```cpp
+void DTCubeBuilder::buildDecisionTree(int t,
+                                      std::vector<Slice>& currentPath,
+                                      double currentScore,
+                                      double& bestScore,
+                                      std::vector<Slice>& bestPath)
+```
+
+**分支探索：** 每个时刻节点可能产生多个分支，代表不同的Slice选择策略，算法系统性地探索每条分支路径。
+
+**累积式得分计算：** 不在终点重新计算，而是在递归过程中累积`currentScore`，提高计算效率。
+
+**空时刻优雅处理：** 当某时刻无可行Slice时，创建`makeEmptySlice()`保持时间轴连续性。
+
+**路径回溯机制：** 
+```cpp
+currentPath.push_back(slice);
+buildDecisionTree(t + 1, currentPath, currentScore + slice.totalScore, bestScore, bestPath);
+currentPath.pop_back();  // 自动回溯
+```
+
+**终止条件：** 当`t >= T`时，比较`currentScore`与`bestScore`，更新全局最优解。
+
+该策略的核心思想是遍历整个解空间，通过简洁的递归回溯确保找到全局最优解。
+
+#### 2.3 DTCubeBuilder核心实现
+
+**构建入口方法：**
+```cpp
+Cube DTCubeBuilder::build() {
+    std::vector<Slice> currentPath;  // 当前路径
+    std::vector<Slice> bestPath;     // 最优路径
+    double bestScore = -std::numeric_limits<double>::infinity();
+    
+    buildDecisionTree(0, currentPath, 0.0, bestScore, bestPath);
+    
+    Cube cube(T);
+    for (const auto& slice : bestPath) {
+        cube.addSlice(slice);
+    }
+    cube.computeTotalScore();
+    return cube;
+}
+```
+
+**关键设计特点：**
+
+1. **参数传递优化**：通过引用传递`currentPath`、`bestScore`、`bestPath`，避免不必要的拷贝开销
+
+2. **分支处理策略**：
+   - 有候选Slice：遍历所有candidates，递归探索每个分支
+   - 无候选Slice：创建emptySlice保持时间轴完整性
+
+3. **得分lazy计算**：
+   ```cpp
+   if (slice.totalScore == 0.0 && !slice.lignes.empty()) {
+       slice.computeTotalScore();  // 按需计算
+   }
+   ```
+
+4. **全局最优更新**：
+   ```cpp
+   if (currentScore > bestScore || bestPath.empty()) {
+       bestScore = currentScore;
+       bestPath = currentPath;  // 深拷贝最优路径
+   }
+   ```
 
 ### 3. 单时刻路径规划
 
@@ -113,7 +215,7 @@ huawei_projet/
 
 为提高路径搜索效率并优化落点选择稳定性，设计了基于落点变化惩罚的三步剪枝算法：
 
-**输入参数设计：**
+**输入参数：**
 - 当前时刻T和临时带宽矩阵状态
 - 流的待传总流量信息
 - 上次落点位置记录（-1表示首次落点）
@@ -180,10 +282,13 @@ huawei_projet/
 
 ## 性能优化：
 
-1. **搜索剪枝**: 在决策树构建中使用分支界限法
-2. **启发式函数**: A*搜索中使用合适的启发函数加速收敛
-3. **内存管理**: 合理的数据结构设计减少内存占用
-4. **并行化潜力**: 架构支持后续并行化改进
+1. **累积式得分计算**: DTCubeBuilder在递归过程中累积得分，避免终点重复计算
+2. **轻量级状态管理**: 不维护复杂的带宽矩阵状态，依赖SlicePlanner内部约束处理
+3. **空时刻优雅处理**: `makeEmptySlice()`确保时间轴连续性，避免递归中断
+4. **路径回溯自动化**: `std::vector`的push/pop操作实现自然的状态回溯
+5. **启发式函数**: A*搜索中使用合适的启发函数加速收敛
+6. **内存管理**: 合理的数据结构设计减少内存占用
+7. **并行化潜力**: 架构支持后续并行化改进
 
 ---
 
