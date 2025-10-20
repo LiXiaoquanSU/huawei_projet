@@ -2,55 +2,81 @@
 #define LIGNE_H
 
 #include <vector>
-#include <cmath>
 #include <tuple>
+#include <utility>
+#include <cmath>
+#include <algorithm>
 
 /**
- * @brief 表示单个时间刻 (t) 内的一条 UAV 传输路径
- * 
- * Tmax 为流的最大传输时延（单位：秒）
- * 
- * 说明：
- *  - Ligne 不再记录落点变化状态；
- *  - 由 SlicePlanner 计算落点惩罚并传入；
- *  - computeScore() 可接收外部落点惩罚参数。
+ * @brief 单时刻内的一条候选路径（直接作为 A* 的“Item”）
+ * - 路径用 (x,y) 座标序列存储：pathXY
+ * - 通过 score 作为优先级（priority_queue 将按 score 高者优先）
+ * - q 表示瓶颈带宽（或本秒可传量上界），append 时按 min 规则维护
  */
 struct Ligne {
-    // ================= 基本属性 =================
-    int flowId;                   // 所属流编号
-    int t;                        // 当前时刻
-    int t_start;                  // 流的起始时间
-    std::vector<int> pathUavIds;  // UAV 节点路径（编号序列）
+    // ======= 基本上下文 =======
+    int   flowId{0};
+    int   t{0};                  // 当前时刻
+    int   t_start{0};            // 流开始时间
+    double Q_total{0.0};         // 流总量 (Mbits)
+    double Tmax{10.0};           // 最大时延(用于 Delay 评分)
 
-    // ================= 路径性能 =================
-    double bandwidth;             // 瓶颈带宽
-    double q;                     // 实际传输流量（Mbps）
-    double Q_total;               // 流的总数据量（Mbps）
-    double distance;              // 路径跳数（=pathUavIds.size() - 1）
-    double Tmax;                  // ⏱️ 最大允许传输时延（秒）
+    // ======= 路径与性能 =======
+    std::vector<std::pair<int,int>> pathXY;  // (x,y) 座标路径
+    double distance{0.0};         // 跳数 = pathXY.size()-1
+    double bandwidth{0.0};        // 当前已知瓶颈
+    double q{0.0};                // 实际用于评分的“已分配速率/可传量上限”
+    bool   landed{false};         // 是否已到达落地区域
+    double score{0.0};            // 评分（A* 的优先级关键）
 
-    // ================= 状态与评分 =================
-    bool landed;                  // 是否已到达落地点
-    double score;                 // 本路径得分
+    Ligne() = default;
 
-    // ================= 构造与函数 =================
-    Ligne();
+    // ========== 评分（作为 A* 的估值/优先级）==========
+    // alpha 控制距离项衰减强度
+    int computeScore(int currentX, int currentY,
+                     int landingX1, int landingY1,
+                     int landingX2, int landingY2,
+                     double alpha = 0.1);
 
-    /**
-     * @brief 计算路径得分（支持外部落点惩罚参数）
-     * @param landingPenalty 落点变化惩罚值（由 SlicePlanner 计算）
-     */
-    void computeScore(int currentX, int currentY,
-                      int landingX1, int landingY1,
-                      int landingX2, int landingY2,
-                      double alpha = 0.1,
-                      double beta = 1.0);
+    // ========== 追加节点 ==========
+    // 只做合法性检查与状态更新（不计算分数）。返回 -1 表示非法，返回 (int)score 表示成功（但分数未刷新）
+    int addPathUav(int x, int y, double q_u);
 
-    /**
-     * @brief 导出当前路径的标准输出项 (t, endX, endY, q)
-     * @param M 网络宽度，用于将 UAV 编号转换为坐标
-     */
-    std::tuple<int, int, int, double> exportOutput(int M) const;
+    // 追加节点并立刻 computeScore，返回最新分数；非法返回 -1
+    int addPathUav(int x, int y, double q_u,
+                   int currentX, int currentY,
+                   int landingX1, int landingY1,
+                   int landingX2, int landingY2,
+                   double alpha = 0.1);
+
+    // ======= 导出标准输出 (t, endX, endY, q) =======
+    std::tuple<int,int,int,double> exportOutput() const;
+
+    // ======= 供 priority_queue 使用：score 高者优先 =======
+    // 默认 priority_queue 取“最大”的元素在顶，因此这里定义为 score < other.score
+    bool operator<(const Ligne& other) const {
+        return score < other.score;
+    }
+
+private:
+    // 4 邻接判断
+    static inline bool isNeighbor4(int ax, int ay, int bx, int by) {
+        int dx = std::abs(ax - bx), dy = std::abs(ay - by);
+        return (dx + dy == 1);
+    }
+    // 路径包含该点？
+    static inline bool pathContains(const std::vector<std::pair<int,int>>& path, int x, int y) {
+        for (const auto& p : path) if (p.first == x && p.second == y) return true;
+        return false;
+    }
+    // 是否与除最后一个以外的任一点 4 邻接（避免贴边/绕回）
+    static inline bool adjacentToAnyExceptLast(const std::vector<std::pair<int,int>>& path,
+                                               int x, int y) {
+        if (path.size() <= 1) return false;
+        for (size_t i = 0; i + 1 < path.size(); ++i)
+            if (isNeighbor4(path[i].first, path[i].second, x, y)) return true;
+        return false;
+    }
 };
 
 #endif // LIGNE_H
