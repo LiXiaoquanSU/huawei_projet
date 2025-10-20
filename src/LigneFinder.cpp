@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <iostream>
 
-LigneFinder::LigneFinder(const Network& net, int currentT, NeighborMode mode)
-    : network(net), t(currentT), neighborMode(mode) {}
+LigneFinder::LigneFinder(const Network& net, int currentT)
+    : network(net), t(currentT) {}
 
 /**
  * @brief 计算 UAV 带宽的代价（带宽越低代价越高）
@@ -23,10 +23,7 @@ double LigneFinder::bandwidthCost(int x, int y) const {
  *        - EIGHT_WAY 使用欧几里得距离
  */
 double LigneFinder::heuristic(int x1, int y1, int x2, int y2) const {
-    if (neighborMode == FOUR_WAY)
         return std::abs(x1 - x2) + std::abs(y1 - y2);
-    else
-        return std::sqrt((x1 - x2)*(x1 - x2) + (y1 - y2)*(y1 - y2));
 }
 
 /**
@@ -34,11 +31,7 @@ double LigneFinder::heuristic(int x1, int y1, int x2, int y2) const {
  */
 std::vector<std::pair<int,int>> LigneFinder::getNeighbors(int x, int y) const {
     std::vector<std::pair<int,int>> dirs;
-    if (neighborMode == FOUR_WAY)
         dirs = {{1,0},{-1,0},{0,1},{0,-1}};
-    else
-        dirs = {{1,0},{-1,0},{0,1},{0,-1},
-                {1,1},{1,-1},{-1,1},{-1,-1}};
     std::vector<std::pair<int,int>> res;
     for (auto [dx,dy] : dirs) {
         int nx = x + dx, ny = y + dy;
@@ -136,6 +129,7 @@ Ligne LigneFinder::findBestPath(const Flow& flow) {
 
     // ========== 构造 Ligne ==========
     result.pathUavIds.clear();
+    result.gridWidth = network.M;
     double minBandwidth = 1e9;
     for (auto [x, y] : path) {
         int uavId = y * network.M + x;
