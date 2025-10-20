@@ -94,7 +94,7 @@ double Ligne::addPathUav(int x, int y, double q_u) {
     distance = std::max(0, static_cast<int>(pathXY.size()) - 1);
 
     // 6) 更新 q（瓶颈），以新增点的带宽 q_u 约束
-    if (q <= 0.0) q = q_u;
+    if (q <= 0.0) q = std::min(q_u, remainingD);
     else if (q_u < q) q = q_u;
 
     // 可选：保持 bandwidth 与 q 同步为瓶颈

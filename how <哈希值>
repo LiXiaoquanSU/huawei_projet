@@ -1,0 +1,20 @@
+[33m8917c0a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mVertionli[m[33m, [m[1;31morigin/Vertionli[m[33m)[m HEAD@{0}: checkout: moving from main to Vertionli
+[33m7abb832[m[33m ([m[1;32mmain[m[33m)[m HEAD@{1}: commit: 限制剩余流量
+[33m61b2843[m[33m ([m[1;31morigin/main[m[33m)[m HEAD@{2}: pull origin main: Fast-forward
+[33m3d01e6a[m HEAD@{3}: checkout: moving from Vertionli to main
+[33m8917c0a[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mVertionli[m[33m, [m[1;31morigin/Vertionli[m[33m)[m HEAD@{4}: commit: ligne测试通过版,带测试输出
+[33mc0894d7[m HEAD@{5}: commit: modife
+[33m20f774b[m HEAD@{6}: commit: LigneFinder
+[33m450a148[m HEAD@{7}: commit: My current version for Vertionli branch
+[33m3d01e6a[m HEAD@{8}: checkout: moving from main to Vertionli
+[33m3d01e6a[m HEAD@{9}: commit: update Ligne and LigneFinder
+[33m4b4392d[m HEAD@{10}: reset: moving to origin/main
+[33m52220d7[m HEAD@{11}: checkout: moving from main to main
+[33m52220d7[m HEAD@{12}: commit: LigneFinder
+[33m4d9b2a1[m HEAD@{13}: pull: Fast-forward
+[33m02f5a64[m HEAD@{14}: checkout: moving from Versionli to main
+[33mf46a14e[m[33m ([m[1;31morigin/Versionli[m[33m, [m[1;32mVersionli[m[33m)[m HEAD@{15}: commit: LigneFinder.h
+[33m5cb2f9e[m HEAD@{16}: commit: sceduler
+[33mb1f487b[m HEAD@{17}: commit: sceduler
+[33mb36f78b[m HEAD@{18}: commit: 修改Ligne
+[33m0c64b54[m HEAD@{19}: commit: 思路

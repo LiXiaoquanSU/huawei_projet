@@ -174,7 +174,8 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
     L0.t       = t_;
     L0.t_start = flow_.startTime;
     L0.Q_total = flow_.size;
-    //L0.setScoringContext(flow_.x, flow_.y, flow_.m1, flow_.n1, flow_.m2, flow_.n2, 0.1);
+    if(remainingData_ !=-1)
+        L0.remainingD = remainingData_;
 
     double bw_start = bwAt(sx, sy);
     if (LF_DEBUG) {
