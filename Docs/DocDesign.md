@@ -44,24 +44,89 @@ huawei_projet/
 └── README.md         # 项目说明
 ```
 
+# UAV PathFinder 设计说明
+
+本文档同步当前 `main` 分支源码的真实实现，概述 UAV 网络调度器的模块划分、核心算法以及现存约束。
+
+## 模块与文件结构
+
+```
+huawei_projet/
+├── include/
+│   ├── Cube.h            # 全时段调度结果
+│   ├── DTCube.h          # 决策树构建器
+│   ├── Flow.h            # 数据流模型
+│   ├── Ligne.h           # 单条传输路径
+│   ├── LigneFinder.h     # A* 路径搜索器（带动态阈值）
+│   ├── Network.h         # 网络拓扑
+│   ├── Scheduler.h       # 调度入口
+│   ├── Slice.h           # 单时刻切片
+│   ├── SlicePlanner.h    # 单时刻切片规划器
+│   ├── UAV.h             # UAV 模型
+│   └── Utils.h           # 文件与运行辅助
+├── src/
+│   ├── Cube.cpp
+│   ├── CubeBuilder.cpp   # 预留占位，当前未实现
+│   ├── DTCube.cpp
+│   ├── Flow.cpp
+│   ├── Ligne.cpp
+│   ├── LigneFinder.cpp
+│   ├── Network.cpp
+│   ├── Scheduler.cpp
+│   ├── Slice.cpp
+│   ├── SlicePlanner.cpp
+│   ├── UAV.cpp
+│   ├── Utils.cpp
+│   └── main.cpp          # 程序入口
+├── input/                # 测试输入
+├── output/               # 运行输出
+├── scripts/
+├── Docs/
+│   └── images/DTCube.png
+├── CMakeLists.txt
+└── README.md
+```
+
+
 ### 抽象架构
 
 系统采用分层架构设计，从底层到顶层包括：
 
 #### 1. 数据模型层 (Data Model Layer)
 
-- **Network** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/Network.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/Network.cpp): 管理整个UAV网络拓扑，包含所有UAV节点和数据流信息
-- **UAV** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/UAV.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/UAV.cpp): 表示单个UAV节点，包含坐标、带宽、相位等属性
-- **Flow** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/Flow.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/Flow.cpp): 表示数据流，包含起点、终点区域、开始时间、数据量等属性
+- **Network (`include/Network.h`, `src/Network.cpp`)**
+  - 读取输入流，填充网络尺寸、流数量与总时长。
+  - 自动按格点顺序为 UAV 编号，并保存 `uavs`、`flows` 两个容器。
+  - 根据坐标提供 `getUAV(x, y)` 查找功能。
+- **UAV (`include/UAV.h`, `src/UAV.cpp`)**
+  - 保存坐标、峰值带宽 `B` 及相位 `phi`。
+  - `bandwidthAt(t)` 基于 10 秒周期规则输出时变带宽（0、B/2 或 B）。
+- **Flow (`include/Flow.h`, `src/Flow.cpp`)**
+  - 定义接入坐标、开始时间、总流量及矩形落地区域。
+  - `inLandingRange()` 用于检测 UAV 是否在合法落地范围内。
+
 
 #### 2. 路径规划层 (Path Planning Layer)
 
-- **LigneFinder** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/LigneFinder.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/LigneFinder.cpp): 基于A*算法的路径搜索器
-  - 考虑UAV带宽作为路径代价
-  - 针对落地区域进行启发式搜索
-- **Ligne** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/Ligne.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/Ligne.cpp): 单时刻的传输路径表示
-  - 包含路径上的UAV节点序列
-  - 计算路径性能指标（带宽、距离、得分等）
+- **Ligne (`include/Ligne.h`, `src/Ligne.cpp`)**
+  - 使用 `pathXY` 记录路径上的 (x, y) 座标序列，仅允许 4 邻接扩展，禁止重复和“紧贴旧节点”绕回。
+  - `addPathUav()` 在容量非零的前提下追加节点，维护跳数 `distance` 与瓶颈带宽 `q`。
+  - `computeScore()` 采用 100 × (0.4 × U2G + 0.2 × Delay + 0.3 × Dist) 评价函数：
+    - U2G：以 `q / Q_total` 衡量当前可传比例；
+    - Delay：根据 `max(0, t - t_start)` 衰减；
+    - Dist：落地后以实际跳数衰减，未落地时结合曼哈顿距离预测剩余损耗。
+  - `exportOutput()` 输出 `(t, endX, endY, q)`，供结果表使用。
+  - `operator<` 以更高分数优先，便于放入 `std::priority_queue`。
+- **LigneFinder (`include/LigneFinder.h`, `src/LigneFinder.cpp`)**
+  - 构造参数包含 `Network`、单条 `Flow`、当前时刻 `t`、带宽映射 `std::map<XY,double>`（键为坐标），以及上一次落点与落点变更次数。
+  - `runAStarOnce(banSet)` 是当前唯一对外接口：
+    - 为每条候选路径维护 A* 扩展队列（堆顶为最大 score），并在访问时写入 `bestSeenScore` 防止低估路径反复扩展。
+    - 引入全局阈值剪枝：一旦最佳路径更新，就通过 `computeThresholdFromBest()` 下调阈值，后续低于阈值的队列节点直接舍弃。
+    - 对已落地路径调用 `applyLandingAdjustment()`，根据 `landingChangeCount` 与 `deltaPenaltyForK()` 施加惩罚或保持。
+    - `neighbors4()` 仅生成上下左右 4 邻接，`banSet` 用于屏蔽非落地区域的特定坐标。
+    - 全流程配有 `LF_DEBUG` 调试输出（目前默认 `true`，需要静默时需手动改为 `false`）。
+  - 返回值为按 score 降序排列的 `std::vector<Ligne>`，每个落点保留多条得分不低于阈值且距离不长于现有候选的路径。
+
 
 #### 3. 时刻调度层 (Slice Scheduling Layer)
 
@@ -76,6 +141,7 @@ huawei_projet/
     3. 每个顺序中每确定一条路就从容量矩阵中扣减占用，再为下一条数据找路；
     4. 每个顺序完成后将 Slice 的分数与现有候选集对比，胜出则替代原候选集的slice，重新初始化后换另一种顺序重复，汇总所有 Slice 作为候选集返回给 DTCubeBuilder。
 返回最佳Slice集合供DTCubeBuilder选择
+
 
 - **Slice** → [头文件](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/include/Slice.h) | [实现](https://github.com/LiXiaoquanSU/huawei_projet/blob/main/src/Slice.cpp): 单时刻的调度结果
   - 包含该时刻所有传输路径

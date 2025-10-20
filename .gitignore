@@ -3,3 +3,5 @@
 build/*
 output/*
 .vscode/*
+build_tests/*
+*.log
