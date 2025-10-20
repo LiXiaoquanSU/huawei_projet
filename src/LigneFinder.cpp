@@ -113,7 +113,7 @@ double LigneFinder::computeThresholdFromBest(const Ligne& best) const {
     int nextK;
 
     if (lastLanding_.first == -1 && lastLanding_.second == -1) {
-        nextK = landingChangeCount_ + 1;
+        nextK = landingChangeCount_ + 2;
     } else {
         bool bestChanged = !(bx == lastLanding_.first && by == lastLanding_.second);
         nextK = landingChangeCount_ + (bestChanged ? 2 : 1);
@@ -255,30 +255,42 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
                 }
                 threshold = newThr;
             } else if (landed.score >= threshold) {
-                // 非最佳：双条件（分数≥阈值 + 同落点更短）
-                auto key = landed.pathXY.back();
-                auto& vec = cmap[key];
-                if (!vec.empty()) {
-                    int minDist = (int)vec.front().distance;
-                    for (auto& c : vec) minDist = std::min(minDist, (int)c.distance);
-                    if ((int)landed.distance <= minDist) vec.push_back(landed);
-                    if (LF_DEBUG) {
-                        std::cout << "    [candidate-keep] score>=threshold & short-enough"
-                                  << "  end=(" << key.first << "," << key.second << ")"
-                                  << "  dist=" << landed.distance << "  kept\n";
-                    }
-                } else {
-                    vec.push_back(landed);
-                    if (LF_DEBUG) {
-                        std::cout << "    [candidate-new] end=(" << key.first << "," << key.second
-                                  << ") added\n";
-                    }
-                }
-            } else {
-                if (LF_DEBUG) {
-                    std::cout << "    [drop] landed.score < threshold, drop\n";
-                }
+    // 非最佳：双条件（分数≥阈值 + 同落点更短才加入）
+    auto key = landed.pathXY.back();
+    auto& vec = cmap[key];
+
+    if (!vec.empty()) {
+        int minDist = static_cast<int>(vec.front().distance);
+        for (auto& c : vec) {
+            minDist = std::min(minDist, static_cast<int>(c.distance));
+        }
+
+        // 只在“严格更短”时加入；相同或更长一律不加
+        if (static_cast<int>(landed.distance) < minDist) {
+            vec.push_back(landed);
+            if (LF_DEBUG) {
+                std::cout << "    [candidate-keep] score>=threshold & strictly-shorter"
+                          << "  end=(" << key.first << "," << key.second << ")"
+                          << "  dist=" << landed.distance << "  kept\n";
             }
+        } else {
+            if (LF_DEBUG) {
+                std::cout << "    [candidate-skip] not strictly shorter at same end"
+                          << "  end=(" << key.first << "," << key.second << ")"
+                          << "  dist=" << landed.distance
+                          << "  minDist=" << minDist << "  skipped\n";
+            }
+        }
+    } else {
+        // 同落点尚无记录，直接加入
+        vec.push_back(landed);
+        if (LF_DEBUG) {
+            std::cout << "    [candidate-new] end=(" << key.first << "," << key.second
+                      << ") added\n";
+        }
+    }
+}
+
             // 不再从已落地节点继续扩展（避免产生环和冗余）
             continue;
         }
@@ -307,7 +319,7 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
             }
 
             Ligne nxt = cur;
-            int rc = nxt.addPathUav(nx, ny, bw_xy, flow_.x, flow_.y, flow_.m1, flow_.n1, flow_.m2, flow_.n2, 0.1);
+            double rc = nxt.addPathUav(nx, ny, bw_xy, flow_.x, flow_.y, flow_.m1, flow_.n1, flow_.m2, flow_.n2, 0.1);
             if (rc < 0) {
                 if (LF_DEBUG) {
                     std::cout << "      [skip] addPathUav(" << nx << "," << ny << ") failed\n";
@@ -324,17 +336,17 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
                 continue;
             }
 
-            // 访问剪枝：同坐标若已有更高估值则跳过
-            long long k = key64(nx, ny);
-            auto it = bestSeenScore.find(k);
-            if (it != bestSeenScore.end() && nxt.score < it->second) {
-                if (LF_DEBUG) {
-                    std::cout << "      [skip] bestSeenScore[(" << nx << "," << ny
-                              << ")=" << it->second << "] >= nxt.score=" << nxt.score << "\n";
-                }
-                continue;
-            }
-            bestSeenScore[k] = nxt.score;
+            // // 访问剪枝：同坐标若已有更高估值则跳过
+            // long long k = key64(nx, ny);
+            // auto it = bestSeenScore.find(k);
+            // if (it != bestSeenScore.end() && nxt.score < it->second) {
+            //     if (LF_DEBUG) {
+            //         std::cout << "      [skip] bestSeenScore[(" << nx << "," << ny
+            //                   << ")=" << it->second << "] >= nxt.score=" << nxt.score << "\n";
+            //     }
+            //     continue;
+            // }
+            // bestSeenScore[k] = nxt.score;
 
             if (LF_DEBUG) {
                 std::cout << "      [push-open] path=" << lignePathToStr(nxt)
