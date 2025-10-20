@@ -34,17 +34,17 @@ struct Ligne {
 
     // ========== 评分（作为 A* 的估值/优先级）==========
     // alpha 控制距离项衰减强度
-    int computeScore(int currentX, int currentY,
+    double computeScore(int currentX, int currentY,
                      int landingX1, int landingY1,
                      int landingX2, int landingY2,
                      double alpha = 0.1);
 
     // ========== 追加节点 ==========
     // 只做合法性检查与状态更新（不计算分数）。返回 -1 表示非法，返回 (int)score 表示成功（但分数未刷新）
-    int addPathUav(int x, int y, double q_u);
+    double addPathUav(int x, int y, double q_u);
 
     // 追加节点并立刻 computeScore，返回最新分数；非法返回 -1
-    int addPathUav(int x, int y, double q_u,
+    double addPathUav(int x, int y, double q_u,
                    int currentX, int currentY,
                    int landingX1, int landingY1,
                    int landingX2, int landingY2,

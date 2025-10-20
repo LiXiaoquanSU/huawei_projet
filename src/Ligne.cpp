@@ -31,7 +31,7 @@ Ligne::Ligne()
       landed(false), score(0.0) {}
 
 // ======================== 得分计算函数 ========================
-int Ligne::computeScore(int currentX, int currentY,
+double Ligne::computeScore(int currentX, int currentY,
                         int landingX1, int landingY1,
                         int landingX2, int landingY2,
                         double alpha)
@@ -73,7 +73,7 @@ int Ligne::computeScore(int currentX, int currentY,
 }
 
 // ======================== 追加节点（不立即评分） ========================
-int Ligne::addPathUav(int x, int y, double q_u) {
+double Ligne::addPathUav(int x, int y, double q_u) {
     // 1) 新点带宽为 0 → 失败
     if (q_u <= 0.0) return -1;
 
@@ -106,13 +106,13 @@ int Ligne::addPathUav(int x, int y, double q_u) {
 }
 
 // ======================== 追加并立即评分 ========================
-int Ligne::addPathUav(int x, int y, double q_u,
+double Ligne::addPathUav(int x, int y, double q_u,
                       int currentX, int currentY,
                       int landingX1, int landingY1,
                       int landingX2, int landingY2,
                       double alpha)
 {
-    int r = addPathUav(x, y, q_u);
+    double r = addPathUav(x, y, q_u);
     if (r == -1) return -1;
 
     // 更新 landed（是否已进落区）

@@ -1,19 +1,19 @@
 #include "Scheduler.h"
-
 #include <iomanip>
 
-// 构造函数：保存网络引用并初始化决策树构建器
 Scheduler::Scheduler(Network& net)
-    : network(net), treeBuilder(net) {}
+    : network(net) {}
 
-// 主调度入口：调用决策树构建器生成全局最优 Cube
+/**
+ * @brief 主调度入口（当前仅做空实现）
+ */
 void Scheduler::run() {
-    std::cout << "\n=== PathFinder A* 决策树调度启动 ===\n";
+    std::cout << "\n=== PathFinder 调度启动 ===\n";
     std::cout << "网络尺寸: " << network.M << " x " << network.N
               << "，流数量: " << network.FN
               << "，时长 T=" << network.T << "\n";
 
-    // 基础参数校验
+    // 如果 T 无效
     if (network.T <= 0) {
         std::cerr << "⚠️ 网络未配置有效的时间长度，跳过调度。\n";
         resultCube.reset();
@@ -21,29 +21,23 @@ void Scheduler::run() {
         return;
     }
 
-    resultCube = treeBuilder.build();
+    // 构造一个空 Cube（防止报错）
+    Cube cube(network.T);
+    resultCube = cube;
 
-    // 理论上 resultCube 一定有值，但这里仍做防御式检查
-    if (!resultCube) {
-        std::cerr << "❌ 决策树构建失败，未生成 Cube。\n";
-        std::cout << "=== 调度失败 ===\n";
-        return;
-    }
-
-    std::cout << "生成的 Slice 数量: " << resultCube->slices.size() << "\n";
-    std::cout << "Cube 总得分: " << std::fixed << std::setprecision(2)
-              << resultCube->totalScore << "\n";
+    std::cout << "⚙️ 暂未启用 DTCubeBuilder，已生成空 Cube。\n";
     std::cout << "=== 调度完成 ===\n";
 }
 
-// 将调度结果输出为标准表格格式
+/**
+ * @brief 将调度结果输出为标准表格格式
+ */
 void Scheduler::outputResult(std::ostream& out) const {
     if (!out) {
         std::cerr << "❌ 输出流无效，无法写入结果\n";
         return;
     }
 
-    // 确保先执行 run()
     if (!resultCube) {
         std::cerr << "❌ 尚未执行调度，缺少可输出的 Cube\n";
         return;
@@ -59,7 +53,9 @@ void Scheduler::outputResult(std::ostream& out) const {
             << x << ' '
             << y << ' '
             << std::fixed << std::setprecision(2) << q << '\n';
-        std::cout << "t=" << t << ", UAV(" << x << "," << y << "), q=" << std::fixed << std::setprecision(2) << q << " Mbps\n";
+        std::cout << "t=" << t
+                  << ", UAV(" << x << "," << y << "), q="
+                  << std::fixed << std::setprecision(2) << q << " Mbps\n";
     }
 
     out.flags(oldFlags);

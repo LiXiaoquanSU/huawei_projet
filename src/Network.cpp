@@ -29,7 +29,7 @@ void Network::loadFromInput(std::istream& in) {
     }
 }
 
-UAV* Network::getUAV(int x, int y) const {
+const UAV* Network::getUAV(int x, int y) const {
     for (auto& u : uavs) {
         if (u.x == x && u.y == y)
             return &u;

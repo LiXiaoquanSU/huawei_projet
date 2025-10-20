@@ -7,16 +7,15 @@
 #include <iostream>
 #include <optional>
 #include "Network.h"
-#include "DTCube.h"
+#include "Cube.h"  // 暂时直接操作 Cube，不依赖 DTCubeBuilder
 
 class Scheduler {
 private:
     Network& network;
-    DTCubeBuilder treeBuilder;
     std::optional<Cube> resultCube;
 
 public:
-    Scheduler(Network& net);
+    explicit Scheduler(Network& net);
 
     // 执行调度算法
     void run();

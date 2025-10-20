@@ -4,13 +4,14 @@
 #include "Network.h"
 #include "Slice.h"
 #include "Ligne.h"
-#include "LigneFinder.h" 
+#include "LigneFinder.h"
 #include <vector>
 #include <map>
+#include <set>
 
 /**
  * @brief SlicePlanner 负责在单个时刻 t 上生成所有可能的 Slice 组合
- * 
+ *
  * 输入：当前时刻 t、Network、当前带宽矩阵
  * 输出：若干可能的 Slice（按得分排序）
  */

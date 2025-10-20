@@ -5,7 +5,7 @@
 #include <string>
 #include <tuple>
 #include "Ligne.h"
-//////加hash比较和包含比较
+
 /**
  * @brief Slice 表示在时刻 t 的所有传输结果
  * 
@@ -27,7 +27,7 @@ public:
     // 计算当前时刻的总得分
     double computeTotalScore();
 
-    // 获取某个流的总传输量
+    // 获取某个流的总传输量（Σq）
     double getFlowTotalQ(int flowId) const;
 
     // 获取某个流的终点 (返回 (x, y))

@@ -31,14 +31,11 @@ double Slice::getFlowTotalQ(int flowId) const {
 
 /**
  * @brief 获取某个流的终点 UAV 坐标
- * @param M 网络宽度（用于索引换算）
  */
 std::pair<int, int> Slice::getFlowEndPoint(int flowId, int M) const {
     for (const auto& l : lignes) {
-        if (l.flowId == flowId && !l.pathUavIds.empty()) {
-            int lastId = l.pathUavIds.back();
-            int x = lastId % M;
-            int y = lastId / M;
+        if (l.flowId == flowId && !l.pathXY.empty()) {
+            auto [x, y] = l.pathXY.back();
             return {x, y};
         }
     }
@@ -52,7 +49,7 @@ std::pair<int, int> Slice::getFlowEndPoint(int flowId, int M) const {
 std::vector<std::tuple<int, int, int, double>> Slice::exportOutputTable(int M) const {
     std::vector<std::tuple<int, int, int, double>> table;
     for (const auto& l : lignes) {
-        table.push_back(l.exportOutput(M)); 
+        table.push_back(l.exportOutput());
     }
     return table;
 }

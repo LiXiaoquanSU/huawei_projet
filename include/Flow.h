@@ -20,6 +20,8 @@ public:
 
     // 判断某个UAV是否在本流的落地范围内
     bool inLandingRange(int ux, int uy) const;
+
+    int arriveData(double size);
 };
 
 #endif // FLOW_H

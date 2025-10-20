@@ -226,9 +226,10 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
         // 全局阈值剪枝（队列有序，堆顶都小于阈值则直接收工）
         if (cur.score < threshold) {
             if (LF_DEBUG) {
-                std::cout << "    [prune] cur.score < threshold -> break all\n";
-            }
-            break;
+        std::cout << "    [prune] cur.score=" << cur.score
+                  << " < threshold=" << threshold << " -> skip\n";
+    }
+    continue; // 仅跳过当前分支，继续其他分支
         }
 
         // 已落地：施加“落点历史奖惩”，并按规则尝试加入候选

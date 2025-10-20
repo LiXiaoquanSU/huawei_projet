@@ -22,7 +22,7 @@ public:
     void loadFromInput(std::istream& in);
 
     // 根据坐标查找UAV
-    UAV* getUAV(int x, int y) const;
+    const UAV* getUAV(int x, int y) const;
 };
 
 #endif // NETWORK_H
