@@ -5,7 +5,7 @@
 #include <string>
 #include <tuple>
 #include "Ligne.h"
-
+//////加hash比较和包含比较
 /**
  * @brief Slice 表示在时刻 t 的所有传输结果
  * 

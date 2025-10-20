@@ -12,7 +12,7 @@ public:
     double size;     // 总流量 s (Mbits)
     int m1, n1;      // 落地区域左上角
     int m2, n2;      // 落地区域右下角
-
+    int rest = size; // 剩余待传流量
     // 构造函数
     Flow();
     Flow(int id, int x, int y, int startTime, double size,

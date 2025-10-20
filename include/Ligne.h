@@ -29,7 +29,8 @@ struct Ligne {
     bool   landed{false};         // 是否已到达落地区域
     double score{0.0};            // 评分（A* 的优先级关键）
 
-    Ligne() = default;
+    // 声明构造函数（实现见 .cpp）
+    Ligne();
 
     // ========== 评分（作为 A* 的估值/优先级）==========
     // alpha 控制距离项衰减强度

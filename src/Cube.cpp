@@ -11,7 +11,7 @@ Cube::Cube(int T)
  */
 void Cube::addSlice(const Slice& slice) {
     if (slice.t < 0 || slice.t >= T) {
-        std::cerr << "⚠️ Slice t=" << slice.t << " 超出时间范围 [0," << T-1 << "]\n";
+        std::cerr << "Slice t=" << slice.t << " 超出时间范围 [0," << T-1 << "]\n";
         return;
     }
     if (slices.size() <= static_cast<size_t>(slice.t))
