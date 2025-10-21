@@ -1,178 +1,208 @@
 #include "SlicePlanner.h"
-#include <algorithm>
 #include <iostream>
+#include <algorithm>
+#include <iomanip>
 
-SlicePlanner::SlicePlanner(Network& net, int currentT)
-    : network(net), t(currentT) {
-    initBandwidthMatrix();
-}
+// ⚙️ 调试输出总开关
+#define DEBUG_SLICEPLANNER 1
+
+using XY = std::pair<int,int>;
+
+SlicePlanner::SlicePlanner(const Network& net,
+    const std::map<int, double>& remaining,
+    const std::map<int, XY>& lastLanding,
+    const std::map<int, XY>& nextLanding,
+    const std::map<int, int>& changeCount,
+    const std::map<int, int>& neighborState,
+    int t,
+    const std::map<XY, double>& bw)
+: network_(net),
+remaining_(remaining),
+lastLanding_(lastLanding),
+nextLanding_(nextLanding), 
+changeCount_(changeCount),
+neighborState_(neighborState), 
+t_(t),
+bw_(bw)
+{}
+
 
 /**
- * @brief 初始化带宽矩阵
+ * @brief 主函数：生成所有可能的 Slice 组合
  */
-void SlicePlanner::initBandwidthMatrix() {
-    bandwidthMatrix.clear();
-    for (const auto& uav : network.uavs) {
-        std::pair<int,int> pos = {uav.x, uav.y};
-        bandwidthMatrix[pos] = uav.bandwidthAt(t);
+std::vector<Slice> SlicePlanner::planAllSlices() {
+#if DEBUG_SLICEPLANNER
+    std::cout << "\n========== [SlicePlanner::planAllSlices] START ==========\n";
+    std::cout << "t=" << t_ << " | total flows=" << remaining_.size() << "\n";
+    for (auto& [fid, r] : remaining_) {
+        auto itL = lastLanding_.find(fid);
+        auto itC = changeCount_.find(fid);
+        auto last = (itL != lastLanding_.end()) ? itL->second : XY{-1,-1};
+        int cc = (itC != changeCount_.end()) ? itC->second : 0;
+        std::cout << "  Flow#" << fid
+                  << "  remaining=" << r
+                  << "  lastLanding=(" << last.first << "," << last.second << ")"
+                  << "  changeCount=" << cc << "\n";
     }
-}
+#endif
 
-/**
- * @brief 应用一条路径占用带宽
- */
-void SlicePlanner::applyLigneUsage(const Ligne& ligne) {
-<<<<<<< HEAD
-    // 简化：暂不真正修改带宽，只做占位
-    (void)ligne;
-}
+    std::vector<Slice> allSlices;
 
-/**
- * @brief 生成可行路径候选（空实现，不报错即可）
- */
-std::vector<Ligne> SlicePlanner::generateCandidateLignes() {
-    std::vector<Ligne> candidates;
+    // 所有 flow 的 id 列表
+    std::vector<int> flowOrder;
+    for (auto& [fid, _] : remaining_) flowOrder.push_back(fid);
 
-    // 示例：生成一个空 Ligne 用于防止报错
-    if (!network.flows.empty()) {
-        Ligne L;
-        L.flowId = network.flows.front().id;
-        L.t = t;
-        L.score = 0.0;
-        candidates.push_back(L);
-    }
+    // 遍历所有流顺序的排列组合
+    std::sort(flowOrder.begin(), flowOrder.end());
+    do {
+#if DEBUG_SLICEPLANNER
+        std::cout << "\n-- [Permutation Start] order = ";
+        for (auto id : flowOrder) std::cout << id << " ";
+        std::cout << "--\n";
+#endif
+        // 使用外部传入的初始带宽矩阵
+        auto initialBw = bw_;
+        Slice initSlice(t_);
+        recursivePlan(0, flowOrder, initialBw, initSlice, allSlices);
+    } while (std::next_permutation(flowOrder.begin(), flowOrder.end()));
 
-    return candidates;
-}
-
-/**
- * @brief 规划所有可能的 Slice
- */
-std::vector<Slice> SlicePlanner::planSlices() {
-    std::vector<Slice> slices;
-    auto candidates = generateCandidateLignes();
-
-    if (candidates.empty()) return slices;
-
-    // 暂时：每个 Ligne 生成一个 Slice
-    for (auto& l : candidates) {
-        Slice s(t, {l});
-        s.computeTotalScore();
-        slices.push_back(s);
-=======
-    // 从路径上每个节点扣减使用的带宽
-    for (const auto& [x, y] : ligne.pathXY) {
-        std::pair<int,int> pos = {x, y};
-        if (bandwidthMatrix.count(pos)) {
-            bandwidthMatrix[pos] = std::max(0.0, bandwidthMatrix[pos] - ligne.q);
+#if DEBUG_SLICEPLANNER
+    std::cout << "\n========== [SlicePlanner::planAllSlices] END ==========\n";
+    std::cout << "  Total candidate slices: " << allSlices.size() << "\n";
+    for (size_t i = 0; i < allSlices.size(); ++i) {
+        std::cout << "  Slice#" << i+1
+                  << "  t=" << allSlices[i].t
+                  << "  lignes=" << allSlices[i].lignes.size() << "\n";
+        for (auto& L : allSlices[i].lignes) {
+            std::cout << "    Flow#" << L.flowId
+                      << "  q=" << std::fixed << std::setprecision(3) << L.q
+                      << "  score=" << std::setw(7) << std::setprecision(3) << L.score
+                      << "  end=(" << L.pathXY.back().first << "," << L.pathXY.back().second << ")\n";
         }
     }
-}
+#endif
 
-std::vector<Ligne> SlicePlanner::generateCandidateLignes(
-    const Flow& flow,
-    const std::pair<int,int>& lastLanding,
-    int landingChangeCount) {
-    
-    // 创建 LigneFinder 并使用 runAStarOnce() 生成候选路径
-    LigneFinder finder(network, flow, t, bandwidthMatrix, lastLanding, landingChangeCount);
-    
-    return finder.runAStarOnce();
-}
-
-
-std::vector<Slice> SlicePlanner::planSlices(
-    const std::map<int, std::pair<int,int>>& lastLandings,
-    const std::map<int, int>& landingChangeCounts) {
-    
-    std::vector<Slice> slicesCandidates;
-    
-    // 1. 为每个流生成候选路径
-    std::map<int, std::vector<Ligne>> flowCandidates;
-    
-    for (const auto& flow : network.flows) {
-        if (t < flow.startTime) continue;  // 未开始的流跳过
-        
-        // 获取历史信息
-        std::pair<int,int> lastLanding = {-1, -1};
-        int changeCount = 0;
-        
-        auto lastIt = lastLandings.find(flow.id);
-        if (lastIt != lastLandings.end()) {
-            lastLanding = lastIt->second;
-        }
-        
-        auto countIt = landingChangeCounts.find(flow.id);
-        if (countIt != landingChangeCounts.end()) {
-            changeCount = countIt->second;
-        }
-        
-        // 生成该流的候选路径
-        auto candidates = generateCandidateLignes(flow, lastLanding, changeCount);
-        if (!candidates.empty()) {
-            flowCandidates[flow.id] = std::move(candidates);
-        }
-    }
-    
-    if (flowCandidates.empty()) return slicesCandidates;
-    
-    // 2. 枚举所有可能的路径组合生成 Slice
-    // 简化实现：为每个流选择最佳路径组成一个 Slice
-    std::vector<Ligne> bestLignes;
-    
-    // 备份带宽矩阵
-    auto originalBandwidth = bandwidthMatrix;
-    
-    // 按流 ID 顺序依次选择最佳路径
-    for (const auto& [flowId, candidates] : flowCandidates) {
-        if (!candidates.empty()) {
-            // 选择得分最高的路径
-            const Ligne& bestLigne = candidates[0];  // 已按得分排序
-            bestLignes.push_back(bestLigne);
-            
-            // 从带宽矩阵中扣减占用
-            applyLigneUsage(bestLigne);
-        }
->>>>>>> main
-    }
-    
-    // 3. 创建 Slice 并计算得分
-    if (!bestLignes.empty()) {
-        Slice slice(t, bestLignes);
-        slice.computeTotalScore();
-        slicesCandidates.push_back(slice);
-    }
-    
-    // 恢复原始带宽矩阵
-    bandwidthMatrix = originalBandwidth;
-    
-    // 4. 按得分排序，限制候选集数量
-    std::sort(slicesCandidates.begin(), slicesCandidates.end(),
-              [](const Slice& a, const Slice& b) {
-                  return a.totalScore > b.totalScore;
-              });
-    
-    if (slicesCandidates.size() > beamSlices) {
-        slicesCandidates.resize(beamSlices);
-    }
-    
-    return slicesCandidates;
-}
-
-<<<<<<< HEAD
-/**
- * @brief 获取当前带宽矩阵
- */
-const std::map<int, double>& SlicePlanner::getBandwidthMatrix() const {
-=======
-const std::map<std::pair<int,int>, double>& SlicePlanner::getBandwidthMatrix() const {
->>>>>>> main
-    return bandwidthMatrix;
+    return allSlices;
 }
 
 /**
- * @brief 计算单个 Slice 的得分（暂时返回其 totalScore）
+ * @brief 递归生成 Slice 组合
  */
-double SlicePlanner::computeSliceScore(const Slice& slice) const {
-    return slice.totalScore;
+void SlicePlanner::recursivePlan(int index,
+                                 std::vector<int>& flowOrder,
+                                 std::map<XY, double> currentBw,
+                                 Slice currentSlice,
+                                 std::vector<Slice>& allSlices)
+{
+    if (index >= (int)flowOrder.size()) {
+        // 所有 flow 都尝试完毕，保存一个 Slice
+        bool duplicate = false;
+        for (auto& s : allSlices) {
+            if (s.isSameAs(currentSlice)) {
+#if DEBUG_SLICEPLANNER
+                std::cout << "    [-] Duplicate Slice skipped\n";
+#endif
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate) {
+#if DEBUG_SLICEPLANNER
+            std::cout << "    [+] New Slice accepted, total lignes=" << currentSlice.lignes.size() << "\n";
+#endif
+            allSlices.push_back(currentSlice);
+        }
+        return;
+    }
+
+    // ============ 1️⃣ 当前流 ============
+    int fid = flowOrder[index];
+    const Flow* flowPtr = nullptr;
+    for (auto& f : network_.flows)
+        if (f.id == fid) { flowPtr = &f; break; }
+
+    if (!flowPtr) return; // 防御
+
+    // ============ 2️⃣ 获取当前流的上下文信息 ============
+    double remain   = remaining_.count(fid)     ? remaining_.at(fid)     : -1;
+    XY prevLanding  = lastLanding_.count(fid)   ? lastLanding_.at(fid)   : XY{-1,-1};
+    XY nextLanding  = nextLanding_.count(fid)   ? nextLanding_.at(fid)   : XY{-1,-1};
+    int change      = changeCount_.count(fid)   ? changeCount_.at(fid)   : 0;
+    int neighbor    = neighborState_.count(fid) ? neighborState_.at(fid) : 0;
+
+#if DEBUG_SLICEPLANNER
+    std::cout << "\n  [Flow#" << fid << "] remain=" << remain
+              << "  prevLanding=(" << prevLanding.first << "," << prevLanding.second << ")"
+              << "  nextLanding=(" << nextLanding.first << "," << nextLanding.second << ")"
+              << "  changeCount=" << change
+              << "  neighborState=" << neighbor << "\n";
+#endif
+
+    // ============ 3️⃣ 调用 LigneFinder ============
+    LigneFinder finder(network_, *flowPtr, t_,
+                       bw_,
+                       prevLanding,
+                       nextLanding,
+                       change,
+                       remain,
+                       neighbor);
+
+    auto lignes = finder.runAStarOnce();
+
+#if DEBUG_SLICEPLANNER
+    std::cout << "    [LigneFinder] found " << lignes.size()
+              << " lignes for flow#" << fid << "\n";
+#endif
+
+    if (lignes.empty()) {
+#if DEBUG_SLICEPLANNER
+        std::cout << "    [Skip] No available path for Flow#" << fid << "\n";
+#endif
+        // 没有路径，也要记录当前 slice（说明这个流无法传输）
+        bool duplicate = false;
+        for (auto& s : allSlices) {
+            if (s.isSameAs(currentSlice)) {
+                duplicate = true;
+                break;
+            }
+        }
+        if (!duplicate)
+            allSlices.push_back(currentSlice);
+        return;
+    }
+
+    // ============ 4️⃣ 遍历当前流所有可行路线 ============
+    for (auto& L : lignes) {
+#if DEBUG_SLICEPLANNER
+        std::cout << "      # q=" << std::setw(6) << std::setprecision(3) << L.q
+                  << " score=" << std::setw(7) << std::setprecision(3) << L.score
+                  << " path=";
+        for (auto& [x,y] : L.pathXY) std::cout << "("<<x<<","<<y<<")->";
+        std::cout << " end=(" << L.pathXY.back().first << "," << L.pathXY.back().second << ")\n";
+#endif
+
+        // 复制带宽表并减去消耗
+        auto bwCopy = currentBw;
+        for (auto& [x,y] : L.pathXY) {
+            double before = bwCopy[{x,y}];
+            bwCopy[{x,y}] = std::max(0.0, before - L.q);
+#if DEBUG_SLICEPLANNER
+            std::cout << "      [bw-update] (" << x << "," << y << ")  "
+                      << std::fixed << std::setprecision(3)
+                      << before << "→" << bwCopy[{x,y}] << "\n";
+#endif
+        }
+
+        // 构造新的 Slice
+        Slice nextSlice = currentSlice;
+        nextSlice.lignes.push_back(L);
+
+#if DEBUG_SLICEPLANNER
+        std::cout << "    [Recursive → next flow] index=" << index+1
+                  << " | currentSlice lignes=" << nextSlice.lignes.size() << "\n";
+#endif
+
+        // 递归调用
+        recursivePlan(index+1, flowOrder, bwCopy, nextSlice, allSlices);
+    }
 }

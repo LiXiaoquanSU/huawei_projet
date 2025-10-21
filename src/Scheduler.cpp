@@ -1,9 +1,6 @@
 #include "Scheduler.h"
-<<<<<<< HEAD
-=======
 
 #include <algorithm>
->>>>>>> main
 #include <iomanip>
 #include <map>
 #include <tuple>
@@ -54,18 +51,6 @@ void Scheduler::outputResult(std::ostream& out) const {
     auto oldFlags = out.flags();
     auto oldPrecision = out.precision();
 
-<<<<<<< HEAD
-    auto table = resultCube->exportOutput(network.M);
-    out << "# t x y q\n";
-    for (const auto& [t, x, y, q] : table) {
-        out << t << ' '
-            << x << ' '
-            << y << ' '
-            << std::fixed << std::setprecision(2) << q << '\n';
-        std::cout << "t=" << t
-                  << ", UAV(" << x << "," << y << "), q="
-                  << std::fixed << std::setprecision(2) << q << " Mbps\n";
-=======
     std::map<int, std::vector<std::tuple<int, int, int, double>>> flowRecords;
     for (const auto& slice : resultCube->slices) {
         for (const auto& ligne : slice.lignes) {
@@ -101,7 +86,6 @@ void Scheduler::outputResult(std::ostream& out) const {
             std::cout << "  t=" << t << ", UAV(" << x << "," << y << "), q="
                       << std::fixed << std::setprecision(2) << q << " Mbps\n";
         }
->>>>>>> main
     }
 
     out.flags(oldFlags);

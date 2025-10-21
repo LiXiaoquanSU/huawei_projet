@@ -25,10 +25,12 @@ public:
                 int t,
                 const std::map<XY,double>& bw,
                 const XY& lastLanding = {-1,-1},
+                const XY& nextLanding = {-1,-1},
                 int landingChangeCount = 0,
+                int neighborState = 0,
                 double remainingData = -1)
         : network_(net), flow_(flow), t_(t),
-          bw_(bw), lastLanding_(lastLanding),
+          bw_(bw), lastLanding_(lastLanding),nextLanding_(nextLanding),
           landingChangeCount_(landingChangeCount),
           remainingData_(remainingData) {}
 
@@ -44,6 +46,8 @@ private:
     const std::map<XY,double>& bw_;
 
     XY lastLanding_;          // 上一次的落点
+    XY nextLanding_; 
+    int neighborState;        //0：左右都不确定，2：左右都确定
     int landingChangeCount_;  // 落点变化次数
     double remainingData_; 
     // 取指定坐标处的临时带宽
@@ -62,7 +66,11 @@ private:
     void applyLandingAdjustment(Ligne& L) const;
 
     // 根据当前最佳路径计算动态阈值
-    double computeThresholdFromBest(const Ligne& best) const;
+    double computeThresholdFromBest(const Ligne& best, int neighborState) const;
+    
+    //计算落点变化次数
+    int computeDeltaChange(const std::pair<int,int>& currentLanding) const;
+
 };
 
 #endif // LIGNEFINDER_H

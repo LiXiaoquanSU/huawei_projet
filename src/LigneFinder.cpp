@@ -7,7 +7,47 @@
 #include <sstream>
 
 // ====== 日志开关（需要静默时改为 false 即可，不影响逻辑）======
-static constexpr bool LF_DEBUG = true;
+static constexpr bool LF_DEBUG = false;
+
+//计算落点变化次数
+int LigneFinder::computeDeltaChange(const std::pair<int,int>& currentLanding) const {
+    auto isUnknown = [](const XY& p){ return p.first == -1 && p.second == -1; };
+    auto sameXY    = [](const XY& p1, const XY& p2){ return p1.first == p2.first && p1.second == p2.second; };
+
+    bool hasPrev = !isUnknown(lastLanding_);
+    bool hasNext = !isUnknown(nextLanding_);
+
+    bool prevEq = hasPrev && sameXY(lastLanding_, currentLanding);
+    bool nextEq = hasNext && sameXY(nextLanding_, currentLanding);
+
+    int deltaChange = 0;
+
+    // ======= 四种情况 =======
+    if (!hasPrev && !hasNext) {
+        deltaChange = 0;  // 前后都无落点
+    }
+    else if ((hasPrev && !hasNext) || (!hasPrev && hasNext)) {
+        deltaChange = (prevEq || nextEq) ? 0 : 1;
+    }
+    else if (hasPrev && hasNext && sameXY(lastLanding_, nextLanding_)) {
+        deltaChange = prevEq ? 0 : 2;
+    }
+    else { // hasPrev && hasNext && last != next
+        if (!prevEq && !nextEq)
+            deltaChange = 2;      // 与两边都不同 → +2
+        else
+            deltaChange = 0;      // ✅ 与一边相同 → 不变
+    }
+
+    if (LF_DEBUG) {
+        std::cout << "[computeDeltaChange] last=(" << lastLanding_.first << "," << lastLanding_.second << ") "
+                  << "curr=(" << currentLanding.first << "," << currentLanding.second << ") "
+                  << "next=(" << nextLanding_.first << "," << nextLanding_.second << ") "
+                  << " -> deltaChange=" << deltaChange << "\n";
+    }
+
+    return deltaChange;
+}
 
 // 小工具：把 path 序列打印成 "(x,y)->(x,y)..."
 static std::string pathToStr(const std::vector<LigneFinder::XY>& path) {
@@ -76,55 +116,86 @@ double LigneFinder::deltaPenaltyForK(int k) const {
 void LigneFinder::applyLandingAdjustment(Ligne& L) const {
     if (L.pathXY.empty()) return;
 
-    if (LF_DEBUG) {
-        auto [ex, ey] = L.pathXY.back();
-        std::cout << "[applyLandingAdjustment] before score=" << L.score
-                  << "  end=(" << ex << "," << ey << ")  lastLanding=("
-                  << lastLanding_.first << "," << lastLanding_.second << ")"
-                  << "  changeCount=" << landingChangeCount_ << "\n";
+    auto [ex, ey] = L.pathXY.back();
+    int deltaChange = computeDeltaChange({ex, ey});  // ✅ 统一调用通用函数
+    int k = landingChangeCount_;                     // 已发生变化次数
+
+    double totalPenalty = 0.0;
+    if (deltaChange == 1) {
+        totalPenalty += deltaPenaltyForK(k + 1);
+    } else if (deltaChange == 2) {
+        totalPenalty += deltaPenaltyForK(k + 1);
+        totalPenalty += deltaPenaltyForK(k + 2);
     }
 
-    // 如果落点与上次不同：扣“第 (changeCount+1) 次变化”的分
-    auto [ex, ey] = L.pathXY.back();
-    if (!(ex == lastLanding_.first && ey == lastLanding_.second)) {
-        int k = landingChangeCount_ + 1;   // 本次就是第 k 次变化
-        double d = deltaPenaltyForK(k);
-        L.score -= d;
-        if (LF_DEBUG) {
-            std::cout << "  -> landing changed: -" << d << ", score=" << L.score << "\n";
-        }
-    } else {
-        if (LF_DEBUG) {
-            std::cout << "  -> same landing: no change\n";
-        }
+    L.score -= totalPenalty;
+
+    if (LF_DEBUG) {
+        std::cout << "[applyLandingAdjustment] flow#" << L.flowId
+                  << " deltaChange=" << deltaChange
+                  << " k=" << k
+                  << " totalPenalty=" << totalPenalty
+                  << " -> newScore=" << L.score << "\n";
     }
 }
 
 // ============ 工具：由当前 best 计算动态阈值 ============
-double LigneFinder::computeThresholdFromBest(const Ligne& best) const {
-    if (best.pathXY.empty()) {
-        if (LF_DEBUG) {
-            std::cout << "[computeThresholdFromBest] best has empty path -> -inf\n";
-        }
-        return -std::numeric_limits<double>::infinity();
-    }
+double LigneFinder::computeThresholdFromBest(const Ligne& best, int neighborState) const {
+    if (best.pathXY.empty()) return -std::numeric_limits<double>::infinity();
 
+    int k = landingChangeCount_;
     auto [bx, by] = best.pathXY.back();
-    int nextK;
 
-    if (lastLanding_.first == -1 && lastLanding_.second == -1) {
-        nextK = landingChangeCount_ + 2;
-    } else {
-        bool bestChanged = !(bx == lastLanding_.first && by == lastLanding_.second);
-        nextK = landingChangeCount_ + (bestChanged ? 2 : 1);
+    // 计算当前新增变化次数
+    int deltaChange = computeDeltaChange({bx, by});
+
+    // ----------- case: 两边都确定（最稳定，阈值 = 最高分） -----------
+    if (neighborState == 2) {
+        if (LF_DEBUG) {
+            std::cout << "[computeThresholdFromBest] flow#" << best.flowId
+                      << " neighborState=2 (both fixed) -> threshold=max=" << best.score << "\n";
+        }
+        return best.score;
     }
-    double thr = best.score - deltaPenaltyForK(nextK);
+
+    // ---------- 辅助：计算 Δ(k) ----------
+    auto D = [&](int i){ return deltaPenaltyForK(i); };
+
+    double thrPenalty = 0.0;
+
+    // ----------- neighborState == 1（中等不确定） -----------
+    if (neighborState == 1) {
+        if (deltaChange == 0)
+            thrPenalty = D(k + 1) - D(k + 2);            // (5 - 3.3)
+        else if (deltaChange == 1)
+            thrPenalty = D(k + 2) - D(k + 3);            // (3.3 - 2.5)
+        else if (deltaChange == 2)
+            thrPenalty = D(k + 3) - D(k + 4);            // (2.5 - 2.0)
+    }
+    // ----------- neighborState == 0（最大不确定） -----------
+    else if (neighborState == 0) {
+        if (deltaChange == 0)
+            thrPenalty = (D(k + 1) - D(k + 2)) + (D(k + 2) - D(k + 3));   // (5-3.3)+(3.3-2.5)
+        else if (deltaChange == 1)
+            thrPenalty = (D(k + 2) - D(k + 3)) + (D(k + 3) - D(k + 4));   // (3.3-2.5)+(2.5-2)
+        else if (deltaChange == 2)
+            thrPenalty = (D(k + 3) - D(k + 4)) + (D(k + 4) - D(k + 5));   // (2.5-2)+(2-10/6)
+    }
+
+    double threshold = best.score - thrPenalty;
+
     if (LF_DEBUG) {
-        std::cout << "[computeThresholdFromBest] bestScore=" << best.score
-                  << " nextK=" << nextK << " -> threshold=" << thr << "\n";
+        std::cout << "[computeThresholdFromBest] flow#" << best.flowId
+                  << " k=" << k
+                  << " deltaChange=" << deltaChange
+                  << " neighborState=" << neighborState
+                  << " thrPenalty=" << thrPenalty
+                  << " -> threshold=" << threshold << "\n";
     }
-    return thr;
+
+    return threshold;
 }
+
 
 // ============ 单次 A*：一次性产出“已筛选的候选集” ============
 std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
@@ -189,7 +260,7 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
         return candidates;  // 如需允许从 0 带宽起步，可放宽此处
     }
 
-    if (L0.addPathUav(sx, sy, bw_start) < 0) {
+    if (L0.addPathUav(sx, sy, bw_start, flow_.x, flow_.y, flow_.m1, flow_.n1, flow_.m2, flow_.n2, 0.1) < 0) {
         if (LF_DEBUG) {
             std::cout << "  [init] addPathUav(start) failed, return empty\n";
             std::cout << "========== [runAStarOnce] END (0 candidates) ==========\n";
@@ -249,7 +320,7 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
                 auto key = landed.pathXY.back();
                 cmap[key].push_back(landed);
 
-                double newThr = computeThresholdFromBest(bestLigne);
+                double newThr = computeThresholdFromBest(bestLigne, neighborState);
                 if (LF_DEBUG) {
                     std::cout << "    [best-update] new bestScore=" << bestScore
                               << "  threshold=" << newThr << "\n";
@@ -267,7 +338,7 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
         }
 
         // 只在“严格更短”时加入；相同或更长一律不加
-        if (static_cast<int>(landed.distance) < minDist) {
+        if (static_cast<int>(landed.distance) <= minDist) {
             vec.push_back(landed);
             if (LF_DEBUG) {
                 std::cout << "    [candidate-keep] score>=threshold & strictly-shorter"
@@ -290,107 +361,6 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
                       << ") added\n";
         }
     }
-<<<<<<< HEAD
-}
-
-            // 不再从已落地节点继续扩展（避免产生环和冗余）
-            continue;
-        }
-
-        // 末端坐标
-        auto [cx, cy] = cur.pathXY.back();
-        if (LF_DEBUG) {
-            std::cout << "    [expand] from (" << cx << "," << cy << ")\n";
-        }
-
-        // 扩展四邻居
-        for (auto [nx, ny] : neighbors4(cx, cy)) {
-            if (inBan(nx, ny)) {
-                if (LF_DEBUG) {
-                    std::cout << "      [skip] (" << nx << "," << ny << ") in banSet\n";
-                }
-                continue;
-            }
-
-            double bw_xy = bwAt(nx, ny);
-            if (bw_xy <= 0.0) {
-                if (LF_DEBUG) {
-                    std::cout << "      [skip] (" << nx << "," << ny << ") bw<=0\n";
-                }
-                continue;
-            }
-
-            Ligne nxt = cur;
-            double rc = nxt.addPathUav(nx, ny, bw_xy, flow_.x, flow_.y, flow_.m1, flow_.n1, flow_.m2, flow_.n2, 0.1);
-            if (rc < 0) {
-                if (LF_DEBUG) {
-                    std::cout << "      [skip] addPathUav(" << nx << "," << ny << ") failed\n";
-                }
-                continue;
-            }
-
-            // 阈值剪枝（无论落没落地）
-            if (nxt.score < threshold) {
-                if (LF_DEBUG) {
-                    std::cout << "      [skip] nxt.score=" << nxt.score
-                              << " < threshold=" << threshold << "\n";
-                }
-                continue;
-            }
-
-            // // 访问剪枝：同坐标若已有更高估值则跳过
-            // long long k = key64(nx, ny);
-            // auto it = bestSeenScore.find(k);
-            // if (it != bestSeenScore.end() && nxt.score < it->second) {
-            //     if (LF_DEBUG) {
-            //         std::cout << "      [skip] bestSeenScore[(" << nx << "," << ny
-            //                   << ")=" << it->second << "] >= nxt.score=" << nxt.score << "\n";
-            //     }
-            //     continue;
-            // }
-            // bestSeenScore[k] = nxt.score;
-
-            if (LF_DEBUG) {
-                std::cout << "      [push-open] path=" << lignePathToStr(nxt)
-                          << " q=" << nxt.q << " dist=" << nxt.distance
-                          << " score=" << nxt.score
-                          << " landed=" << (nxt.landed?"Y":"N") << "\n";
-            }
-            open.push(nxt);
-        }
-    }
-
-    // 展平 cmap 为结果
-    for (auto& [end, vec] : cmap) {
-        candidates.insert(candidates.end(), vec.begin(), vec.end());
-    }
-    // 可选：按得分降序
-    std::sort(candidates.begin(), candidates.end(),
-              [](const Ligne& a, const Ligne& b){ return a.score > b.score; });
-
-    if (LF_DEBUG) {
-        std::cout << "\n========== [runAStarOnce] RESULT ==========\n";
-        if (candidates.empty()) {
-            std::cout << "  (no candidates)\n";
-        } else {
-            std::cout << "  total candidates: " << candidates.size() << "\n";
-            for (size_t i = 0; i < candidates.size(); ++i) {
-                const auto& L = candidates[i];
-                auto [ex,ey] = L.pathXY.empty() ? std::make_pair(-1,-1) : L.pathXY.back();
-                std::cout << "  #" << (i+1)
-                          << " score=" << L.score
-                          << " q=" << L.q
-                          << " dist=" << L.distance
-                          << " end=(" << ex << "," << ey << ")"
-                          << " path=" << lignePathToStr(L) << "\n";
-            }
-        }
-        std::cout << "========== [runAStarOnce] END ==========\n";
-    }
-
-    return candidates;
-=======
->>>>>>> main
 }
 
             // 不再从已落地节点继续扩展（避免产生环和冗余）
