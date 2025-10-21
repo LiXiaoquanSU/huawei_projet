@@ -1,125 +1,55 @@
 #include "Slice.h"
-#include <sstream>  // 用于字符串流操作
-#include <iomanip>  // 用于格式化输出
-#include <map>      // 用于映射容器（保留，可能的扩展需求）
+#include <iomanip>
 
-/**
- * @brief 默认构造函数
- * 
- * 创建一个空的Slice对象，时刻设为0，总得分设为0
- */
-Slice::Slice() : t(0), totalScore(0) {}
+Slice::Slice(int t_) 
+    : t(t_), totalScore(0.0), totalQ(0.0), efficiency(0.0) {}
 
-/**
- * @brief 参数化构造函数
- * 
- * @param t 时刻编号
- * @param lignes 该时刻的路径集合，包含所有流在当前时刻的传输路径
- * 
- * 创建指定时刻的Slice，包含一组Ligne路径。每个Ligne代表一个流的传输路径。
- */
-Slice::Slice(int t, const std::vector<Ligne>& lignes)
-    : t(t), lignes(lignes), totalScore(0) {}
-
-
-double Slice::computeTotalScore() {
+void Slice::calculate() {
     totalScore = 0.0;
-    
-    // 遍历当前时刻所有流的传输路径
-    for (auto& l : lignes) {
-        totalScore += l.score;  // 累加每条路径的得分
+    totalQ = 0.0;
+
+    for (const auto& L : lignes) {
+        totalScore += L.score;
+        totalQ += L.q;
     }
-    
-    return totalScore;
+
+    efficiency = (totalQ > 0.0) ? (totalScore / totalQ) : 0.0;
 }
 
-
-double Slice::getFlowTotalQ(int flowId) const {
-    double sum = 0.0;
-    
-    // 遍历当前时刻的所有传输路径
-    for (const auto& l : lignes) {
-        // 找到属于指定流的路径，累加其传输速率
-        if (l.flowId == flowId) {
-            sum += l.q;  // q是该路径的瓶颈带宽（实际传输速率）
-        }
-    }
-    
-    return sum;
+bool Slice::isDominatedBy(const Slice& other) const {
+    return (other.totalScore >= totalScore &&
+            other.efficiency > efficiency &&
+            (other.totalScore > totalScore || other.efficiency > efficiency));
 }
 
-<<<<<<< HEAD
-/**
- * @brief 获取某个流的终点 UAV 坐标
- */
-=======
+bool Slice::isSameAs(const Slice& other) const {
+    if (t != other.t) return false;
+    if (lignes.size() != other.lignes.size()) return false;
 
->>>>>>> main
-std::pair<int, int> Slice::getFlowEndPoint(int flowId, int M) const {
-    // 遍历当前时刻的所有传输路径
-    for (const auto& l : lignes) {
-<<<<<<< HEAD
-        if (l.flowId == flowId && !l.pathXY.empty()) {
-            auto [x, y] = l.pathXY.back();
-=======
-        // 检查是否为指定流且路径不为空
-        if (l.flowId == flowId && !l.pathXY.empty()) {
-            // 使用结构化绑定获取路径终点坐标
-            auto [x, y] = l.pathXY.back();  // pathXY的最后一个元素即为终点
->>>>>>> main
-            return {x, y};
-        }
+    // 按 flowId 排序，确保对齐
+    auto A = lignes;
+    auto B = other.lignes;
+    std::sort(A.begin(), A.end(), [](const Ligne& a, const Ligne& b){ return a.flowId < b.flowId; });
+    std::sort(B.begin(), B.end(), [](const Ligne& a, const Ligne& b){ return a.flowId < b.flowId; });
+
+    for (size_t i = 0; i < A.size(); ++i) {
+        if (A[i].flowId != B[i].flowId) return false;
+        if (std::abs(A[i].score - B[i].score) > 1e-6) return false;
     }
-    
-    // 未找到指定流或路径为空
-    return {-1, -1};
+    return true;
 }
 
-
-std::vector<std::tuple<int, int, int, double>> Slice::exportOutputTable(int M) const {
-    std::vector<std::tuple<int, int, int, double>> table;
-    
-    // 遍历当前时刻的所有传输路径
-    for (const auto& l : lignes) {
-<<<<<<< HEAD
-        table.push_back(l.exportOutput());
-=======
-        // 调用Ligne的exportOutput()方法获取标准格式输出
-        // 返回格式：(时刻t, 终点x坐标, 终点y坐标, 传输速率q)
-        table.push_back(l.exportOutput()); 
->>>>>>> main
+void Slice::print() const {
+    std::cout << "=== Slice t=" << t << " ===\n";
+    std::cout << "  Lignes: " << lignes.size() << "\n";
+    std::cout << "  Total Score: " << std::fixed << std::setprecision(3) << totalScore << "\n";
+    std::cout << "  Total Q: " << totalQ << "\n";
+    std::cout << "  Efficiency: " << efficiency << "\n";
+    for (size_t i = 0; i < lignes.size(); ++i) {
+        std::cout << "    Flow#" << lignes[i].flowId << ": ";
+        for (auto [x,y] : lignes[i].pathXY)
+            std::cout << "(" << x << "," << y << ")->";
+        std::cout << " score=" << lignes[i].score 
+                  << " q=" << lignes[i].q << "\n";
     }
-    
-    return table;
-}
-
-
-std::string Slice::summary() const {
-    std::ostringstream oss;
-    
-    // 输出Slice标题，显示时刻编号
-    oss << "--- Slice t=" << t << " ---\n";
-    
-    // 输出表格标题行，使用固定宽度对齐
-    oss << std::setw(8) << "FlowID"      // 流ID列，宽度8
-        << std::setw(12) << "Q (Mbps)"   // 传输速率列，宽度12
-        << std::setw(12) << "Score"      // 得分列，宽度12
-        << "\n";
-    
-    // 输出分隔线
-    oss << "--------------------------------\n";
-    
-    // 遍历所有路径，输出每条路径的详细信息
-    for (const auto& l : lignes) {
-        oss << std::setw(8) << l.flowId                                    // 流ID
-            << std::setw(12) << std::fixed << std::setprecision(2) << l.q  // 传输速率，保留2位小数
-            << std::setw(12) << std::fixed << std::setprecision(2) << l.score  // 得分，保留2位小数
-            << "\n";
-    }
-    
-    // 输出底部分隔线和总得分
-    oss << "--------------------------------\n";
-    oss << "Total Score: " << std::fixed << std::setprecision(2) << totalScore << "\n";
-    
-    return oss.str();
 }
