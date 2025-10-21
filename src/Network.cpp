@@ -19,7 +19,6 @@ void Network::loadFromInput(std::istream& in) {
         uavs.emplace_back(id, x, y, B, phi);
     }
     
-
     // 读取 FN 条 Flow
     for (int i = 0; i < FN; ++i) {
         int id, x, y, startTime, m1, n1, m2, n2;
@@ -29,7 +28,11 @@ void Network::loadFromInput(std::istream& in) {
     }
 }
 
+<<<<<<< HEAD
 const UAV* Network::getUAV(int x, int y) const {
+=======
+const UAV* Network::getUAV(int x, int y) const{
+>>>>>>> main
     for (auto& u : uavs) {
         if (u.x == x && u.y == y)
             return &u;

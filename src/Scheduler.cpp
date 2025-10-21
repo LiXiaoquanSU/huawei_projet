@@ -1,5 +1,13 @@
 #include "Scheduler.h"
+<<<<<<< HEAD
+=======
+
+#include <algorithm>
+>>>>>>> main
 #include <iomanip>
+#include <map>
+#include <tuple>
+#include <vector>
 
 Scheduler::Scheduler(Network& net)
     : network(net) {}
@@ -46,6 +54,7 @@ void Scheduler::outputResult(std::ostream& out) const {
     auto oldFlags = out.flags();
     auto oldPrecision = out.precision();
 
+<<<<<<< HEAD
     auto table = resultCube->exportOutput(network.M);
     out << "# t x y q\n";
     for (const auto& [t, x, y, q] : table) {
@@ -56,6 +65,43 @@ void Scheduler::outputResult(std::ostream& out) const {
         std::cout << "t=" << t
                   << ", UAV(" << x << "," << y << "), q="
                   << std::fixed << std::setprecision(2) << q << " Mbps\n";
+=======
+    std::map<int, std::vector<std::tuple<int, int, int, double>>> flowRecords;
+    for (const auto& slice : resultCube->slices) {
+        for (const auto& ligne : slice.lignes) {
+            if (ligne.pathXY.empty()) {
+                continue;
+            }
+            auto [endX, endY] = ligne.pathXY.back();
+            flowRecords[ligne.flowId].emplace_back(slice.t, endX, endY, ligne.q);
+        }
+    }
+
+    for (auto& [flowId, records] : flowRecords) {
+        std::sort(records.begin(), records.end(),
+                  [](const auto& a, const auto& b) {
+                      return std::get<0>(a) < std::get<0>(b);
+                  });
+    }
+
+    static const std::vector<std::tuple<int, int, int, double>> emptyRecords;
+
+    for (const auto& flow : network.flows) {
+        const auto it = flowRecords.find(flow.id);
+        const auto& records = (it != flowRecords.end()) ? it->second : emptyRecords;
+
+        out << flow.id << ' ' << records.size() << '\n';
+        std::cout << "Flow " << flow.id << " records: " << records.size() << '\n';
+
+        for (const auto& [t, x, y, q] : records) {
+            out << t << ' '
+                << x << ' '
+                << y << ' '
+                << std::fixed << std::setprecision(2) << q << '\n';
+            std::cout << "  t=" << t << ", UAV(" << x << "," << y << "), q="
+                      << std::fixed << std::setprecision(2) << q << " Mbps\n";
+        }
+>>>>>>> main
     }
 
     out.flags(oldFlags);

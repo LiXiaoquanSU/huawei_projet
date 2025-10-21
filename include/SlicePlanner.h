@@ -31,23 +31,35 @@ public:
 
     /**
      * @brief 主规划函数：生成若干可能的 Slice（按得分排序）
+     * @param lastLandings 上一时刻各流的落点位置 (flowId -> (x,y))
+     * @param landingChangeCounts 各流落点变化次数 (flowId -> count)
      */
-    std::vector<Slice> planSlices();
+    std::vector<Slice> planSlices(
+        const std::map<int, std::pair<int,int>>& lastLandings = {},
+        const std::map<int, int>& landingChangeCounts = {}
+    );
 
     /**
-     * @brief 获取当前带宽矩阵
+     * @brief 获取当前带宽矩阵（坐标形式）
      */
-    const std::map<int, double>& getBandwidthMatrix() const;
+    const std::map<std::pair<int,int>, double>& getBandwidthMatrix() const;
 
 private:
     Network& network;
     int t; ///< 当前时刻
 
-    // UAV带宽矩阵：uavId -> 可用带宽(Mbps)
-    std::map<int, double> bandwidthMatrix;
+    // 带宽矩阵：(x,y) -> 可用带宽(Mbps)
+    std::map<std::pair<int,int>, double> bandwidthMatrix;
 
-    // 计算当前时刻所有可行路径候选
-    std::vector<Ligne> generateCandidateLignes();
+    // 候选集上限
+    static constexpr int beamSlices = 10;
+
+    // 使用 LigneFinder 生成单个流的候选路径
+    std::vector<Ligne> generateCandidateLignes(
+        const Flow& flow,
+        const std::pair<int,int>& lastLanding,
+        int landingChangeCount
+    );
 
     // 计算单个Slice得分
     double computeSliceScore(const Slice& slice) const;

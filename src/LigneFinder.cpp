@@ -290,6 +290,107 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
                       << ") added\n";
         }
     }
+<<<<<<< HEAD
+}
+
+            // 不再从已落地节点继续扩展（避免产生环和冗余）
+            continue;
+        }
+
+        // 末端坐标
+        auto [cx, cy] = cur.pathXY.back();
+        if (LF_DEBUG) {
+            std::cout << "    [expand] from (" << cx << "," << cy << ")\n";
+        }
+
+        // 扩展四邻居
+        for (auto [nx, ny] : neighbors4(cx, cy)) {
+            if (inBan(nx, ny)) {
+                if (LF_DEBUG) {
+                    std::cout << "      [skip] (" << nx << "," << ny << ") in banSet\n";
+                }
+                continue;
+            }
+
+            double bw_xy = bwAt(nx, ny);
+            if (bw_xy <= 0.0) {
+                if (LF_DEBUG) {
+                    std::cout << "      [skip] (" << nx << "," << ny << ") bw<=0\n";
+                }
+                continue;
+            }
+
+            Ligne nxt = cur;
+            double rc = nxt.addPathUav(nx, ny, bw_xy, flow_.x, flow_.y, flow_.m1, flow_.n1, flow_.m2, flow_.n2, 0.1);
+            if (rc < 0) {
+                if (LF_DEBUG) {
+                    std::cout << "      [skip] addPathUav(" << nx << "," << ny << ") failed\n";
+                }
+                continue;
+            }
+
+            // 阈值剪枝（无论落没落地）
+            if (nxt.score < threshold) {
+                if (LF_DEBUG) {
+                    std::cout << "      [skip] nxt.score=" << nxt.score
+                              << " < threshold=" << threshold << "\n";
+                }
+                continue;
+            }
+
+            // // 访问剪枝：同坐标若已有更高估值则跳过
+            // long long k = key64(nx, ny);
+            // auto it = bestSeenScore.find(k);
+            // if (it != bestSeenScore.end() && nxt.score < it->second) {
+            //     if (LF_DEBUG) {
+            //         std::cout << "      [skip] bestSeenScore[(" << nx << "," << ny
+            //                   << ")=" << it->second << "] >= nxt.score=" << nxt.score << "\n";
+            //     }
+            //     continue;
+            // }
+            // bestSeenScore[k] = nxt.score;
+
+            if (LF_DEBUG) {
+                std::cout << "      [push-open] path=" << lignePathToStr(nxt)
+                          << " q=" << nxt.q << " dist=" << nxt.distance
+                          << " score=" << nxt.score
+                          << " landed=" << (nxt.landed?"Y":"N") << "\n";
+            }
+            open.push(nxt);
+        }
+    }
+
+    // 展平 cmap 为结果
+    for (auto& [end, vec] : cmap) {
+        candidates.insert(candidates.end(), vec.begin(), vec.end());
+    }
+    // 可选：按得分降序
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Ligne& a, const Ligne& b){ return a.score > b.score; });
+
+    if (LF_DEBUG) {
+        std::cout << "\n========== [runAStarOnce] RESULT ==========\n";
+        if (candidates.empty()) {
+            std::cout << "  (no candidates)\n";
+        } else {
+            std::cout << "  total candidates: " << candidates.size() << "\n";
+            for (size_t i = 0; i < candidates.size(); ++i) {
+                const auto& L = candidates[i];
+                auto [ex,ey] = L.pathXY.empty() ? std::make_pair(-1,-1) : L.pathXY.back();
+                std::cout << "  #" << (i+1)
+                          << " score=" << L.score
+                          << " q=" << L.q
+                          << " dist=" << L.distance
+                          << " end=(" << ex << "," << ey << ")"
+                          << " path=" << lignePathToStr(L) << "\n";
+            }
+        }
+        std::cout << "========== [runAStarOnce] END ==========\n";
+    }
+
+    return candidates;
+=======
+>>>>>>> main
 }
 
             // 不再从已落地节点继续扩展（避免产生环和冗余）

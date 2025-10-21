@@ -38,7 +38,11 @@ double Ligne::computeScore(int currentX, int currentY,
 {
     if (Q_total <= 0.0) {
         score = 0.0;
+<<<<<<< HEAD
         return static_cast<int>(score);
+=======
+        return score;
+>>>>>>> main
     }
 
     // ===== 1️⃣ U2G Traffic Score =====
@@ -102,7 +106,11 @@ double Ligne::addPathUav(int x, int y, double q_u) {
     else bandwidth = std::min(bandwidth, q);
 
     // 此函数不负责更新 landed / 不立即评分
+<<<<<<< HEAD
     return static_cast<int>(score);
+=======
+    return score;
+>>>>>>> main
 }
 
 // ======================== 追加并立即评分 ========================
@@ -137,4 +145,8 @@ std::tuple<int, int, int, double> Ligne::exportOutput() const {
     }
     auto [endX, endY] = pathXY.back();
     return std::make_tuple(t, endX, endY, q);
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> main
