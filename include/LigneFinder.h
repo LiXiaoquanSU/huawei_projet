@@ -27,11 +27,12 @@ public:
                 const XY& lastLanding = {-1,-1},
                 const XY& nextLanding = {-1,-1},
                 int landingChangeCount = 0,
-                int neighborState = 0,
+                int neighborState_ = 1,
                 double remainingData = -1)
         : network_(net), flow_(flow), t_(t),
           bw_(bw), lastLanding_(lastLanding),nextLanding_(nextLanding),
           landingChangeCount_(landingChangeCount),
+          neighborState(neighborState_), 
           remainingData_(remainingData) {}
 
     /**
