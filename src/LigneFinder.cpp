@@ -7,7 +7,7 @@
 #include <sstream>
 
 // ====== 日志开关（需要静默时改为 false 即可，不影响逻辑）======
-static constexpr bool LF_DEBUG = true;
+static constexpr bool LF_DEBUG = false;
 
 //计算落点变化次数
 int LigneFinder::computeDeltaChange(const std::pair<int,int>& currentLanding) const {
@@ -161,14 +161,11 @@ double LigneFinder::computeThresholdFromBest(const Ligne& best, int neighborStat
     auto D = [&](int i){ return deltaPenaltyForK(i); };
 
     double thrPenalty = 0.0;
-    std::cout << "\n  ########################"<<neighborState << "\n";
-    
+
     // ----------- neighborState == 1（中等不确定） -----------
     if (neighborState == 1) {
-        if (deltaChange == 0){
+        if (deltaChange == 0)
             thrPenalty = D(k + 1) - D(k + 2);            // (5 - 3.3)
-            std::cout << "\n  ########################" << thrPenalty<<"\n";
-        }
         else if (deltaChange == 1)
             thrPenalty = D(k + 2) - D(k + 3);            // (3.3 - 2.5)
         else if (deltaChange == 2)

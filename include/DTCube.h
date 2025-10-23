@@ -2,6 +2,8 @@
 #define DTCUBE_H
 
 #include <vector>
+#include <map>
+#include <utility>
 #include "Cube.h"
 #include "Network.h"
 #include "SlicePlanner.h"
@@ -27,23 +29,30 @@ public:
     Cube build();
 
 private:
+    using XY = std::pair<int,int>;
     Network& network;
     int T;
 
-    /**
-     * @brief 深度优先搜索整棵决策树，记录得分最高的 Slice 组合
-     *
-     * @param t             当前处理的时刻索引
-     * @param currentPath   递归路径上已有的 Slice 列表（长度等于 t）
-     * @param currentScore  currentPath 中所有 Slice 的得分累计
-     * @param bestScore     全局最佳得分（引用参数，用于原地更新）
-     * @param bestPath      全局最佳 Slice 列表（引用参数，用于原地更新）
-     */
-    void buildDecisionTree(int t,
-                           std::vector<Slice>& currentPath,
-                           double currentScore,
-                           double& bestScore,
-                           std::vector<Slice>& bestPath);
+    // 递归搜索
+    void dfs(int t,
+             std::vector<Slice>& currentPath,
+             double currentScore,
+             double& bestScore,
+             std::vector<Slice>& bestPath,
+             std::map<int,double> remaining,
+             std::map<int,XY>    lastLanding,
+             std::map<int,XY>    nextLanding,
+             std::map<int,int>   changeCount,
+             std::map<int,int>   neighborState);
+
+    // 工具函数
+    std::map<XY,double> makeBandwidthMap(int t) const;
+    static double computeSliceScore(const Slice& s);
+    static void   updateStateWithSlice(const Slice& s,
+                                       std::map<int,double>& remaining,
+                                       std::map<int,XY>&    lastLanding,
+                                       std::map<int,int>&   changeCount);
+    static bool   allFinished(const std::map<int,double>& remaining);
 
     Slice makeEmptySlice(int t) const;
 };

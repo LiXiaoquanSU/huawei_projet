@@ -1,5 +1,5 @@
 #include "Scheduler.h"
-
+#include "DTCube.h"
 #include <algorithm>
 #include <iomanip>
 #include <map>
@@ -26,11 +26,13 @@ void Scheduler::run() {
         return;
     }
 
-    // 构造一个空 Cube（防止报错）
-    Cube cube(network.T);
-    resultCube = cube;
+    DTCubeBuilder builder(network);
+    Cube best = builder.build();                 // 会填满 cube.slices
+    resultCube = std::move(best);
 
-    std::cout << "⚙️ 暂未启用 DTCubeBuilder，已生成空 Cube。\n";
+    std::cout << "✅ DTCubeBuilder 完成：生成 " 
+              << resultCube->slices.size() << " 个切片（应覆盖 0..T-1）\n";
+    
     std::cout << "=== 调度完成 ===\n";
 }
 

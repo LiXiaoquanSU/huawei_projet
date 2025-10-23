@@ -1,75 +1,152 @@
-// #include "DTCube.h"
+#include "DTCube.h"
 
-// #include <limits>
-// #include <vector>
+#include <limits>
+#include <vector>
+#include <algorithm>
+#include <iostream>
+#include <iomanip>
 
-// DTCubeBuilder::DTCubeBuilder(Network& net)
-//     : network(net), T(net.T) {}
+using XY = std::pair<int,int>;
 
-// Cube DTCubeBuilder::build() {
-//     // currentPath 随着递归深入按顺序记录每个时刻的 Slice
-//     std::vector<Slice> currentPath;
-//     // bestPath 用于存储迄今为止得分最高的 Slice 序列
-//     std::vector<Slice> bestPath;
-//     double bestScore = -std::numeric_limits<double>::infinity();
+// ====== 日志开关（需要静默时改为 false 即可，不影响逻辑）======
+static constexpr bool LF_DEBUG = true;
 
-//     // 从 t=0 开始展开整棵决策树
-//     buildDecisionTree(0, currentPath, 0.0, bestScore, bestPath);
+DTCubeBuilder::DTCubeBuilder(Network& net)
+    : network(net), T(net.T) {}
 
-//     Cube cube(T);
-//     // 将最佳路径中每个 Slice 写入 Cube
-//     for (const auto& slice : bestPath) {
-//         cube.addSlice(slice);
-//     }
-//     // 汇总得分，方便后续直接读取 Cube.totalScore
-//     cube.computeTotalScore();
-//     return cube;
-// }
+Cube DTCubeBuilder::build() {
+    if (LF_DEBUG) std::cout << "=== 开始构建 DTCube ===" << std::endl;
 
-// void DTCubeBuilder::buildDecisionTree(int t,
-//                                       std::vector<Slice>& currentPath,
-//                                       double currentScore,
-//                                       double& bestScore,
-//                                       std::vector<Slice>& bestPath) {
-//     // 当所有时刻均已处理时，根据累计得分更新全局最优解
-//     if (t >= T) {
-//         if (currentScore > bestScore || bestPath.empty()) {
-//             bestScore = currentScore;
-//             bestPath = currentPath;
-//         }
-//         return;
-//     }
+    // 初始全局状态
+    std::map<int,double> remaining;
+    std::map<int,XY>     lastLanding;
+    std::map<int,XY>     nextLanding;
+    std::map<int,int>    changeCount;
+    std::map<int,int>    neighborState;
 
-//     // 针对时刻 t 生成候选 Slice
-//     SlicePlanner planner(network, t);
-//     auto candidates = planner.planSlices();
+    for (const auto& f : network.flows) {
+        remaining[f.id]   = f.size;
+        lastLanding[f.id] = {-1,-1};
+        nextLanding[f.id] = {-1,-1};
+        changeCount[f.id] = 0;
+        neighborState[f.id] = 1;
+    }
 
-//     // 若没有任何候选，创建一个空 Slice 占位，以保持时间轴连续
-//     if (candidates.empty()) {
-//         Slice emptySlice = makeEmptySlice(t);
-//         currentPath.push_back(emptySlice);
-//         buildDecisionTree(t + 1, currentPath, currentScore + emptySlice.totalScore,
-//                           bestScore, bestPath);
-//         currentPath.pop_back();
-//         return;
-//     }
+    std::vector<Slice> currentPath;
+    std::vector<Slice> bestPath;
+    double bestScore = -std::numeric_limits<double>::infinity();
 
-//     // 依次尝试每个候选 Slice，并继续向下递归
-//     for (auto& slice : candidates) {
-//         // slice 可能尚未显式计算得分，这里确保 totalScore 可用
-//         if (slice.totalScore == 0.0 && !slice.lignes.empty()) {
-//             slice.computeTotalScore();
-//         }
-//         currentPath.push_back(slice);
-//         buildDecisionTree(t + 1, currentPath, currentScore + slice.totalScore,
-//                           bestScore, bestPath);
-//         currentPath.pop_back();
-//     }
-// }
+    dfs(0, currentPath, 0.0, bestScore, bestPath,
+        remaining, lastLanding, nextLanding, changeCount, neighborState);
 
-// Slice DTCubeBuilder::makeEmptySlice(int t) const {
-//     // 创建一个不包含任何路径的 Slice，用于没有业务的时刻
-//     Slice empty(t, {});
-//     empty.computeTotalScore();
-//     return empty;
-// }
+    Cube cube(T);
+    for (const auto& s : bestPath) cube.addSlice(s);
+    return cube;
+}
+
+void DTCubeBuilder::dfs(int t,
+                        std::vector<Slice>& currentPath,
+                        double currentScore,
+                        double& bestScore,
+                        std::vector<Slice>& bestPath,
+                        std::map<int,double> remaining,
+                        std::map<int,XY>    lastLanding,
+                        std::map<int,XY>    nextLanding,
+                        std::map<int,int>   changeCount,
+                        std::map<int,int>   neighborState)
+{
+    if (LF_DEBUG) std::cout << "[递归] 时刻 t=" << t << " 开始运行" << std::endl;
+
+    // 终止
+    if (t >= T || allFinished(remaining)) {
+        if (currentScore > bestScore || bestPath.empty()) {
+            bestScore = currentScore;
+            bestPath  = currentPath;
+        }
+        return;
+    }
+
+    // 1) 构造带宽图
+    auto bw = makeBandwidthMap(t);
+
+    // 2) 生成候选切片
+    SlicePlanner planner(network, remaining, lastLanding, nextLanding,
+                         changeCount, neighborState, t, bw);
+    auto candidates = planner.planAllSlices();
+
+    if (LF_DEBUG)
+        std::cout << "  → SlicePlanner 返回了 " << candidates.size() << " 个 Slice" << std::endl;
+
+    if (candidates.empty()) {
+        Slice empty = makeEmptySlice(t);
+        currentPath.push_back(empty);
+        dfs(t+1, currentPath, currentScore, bestScore, bestPath,
+            remaining, lastLanding, nextLanding, changeCount, neighborState);
+        currentPath.pop_back();
+        return;
+    }
+
+    std::sort(candidates.begin(), candidates.end(),
+              [](const Slice& a, const Slice& b){
+                  return computeSliceScore(a) > computeSliceScore(b);
+              });
+    const int BEAM = 20;
+    if ((int)candidates.size() > BEAM) candidates.resize(BEAM);
+
+    // 3) 遍历候选
+    for (const auto& s : candidates) {
+        double sliceScore = computeSliceScore(s);
+
+        auto rem2 = remaining;
+        auto last2 = lastLanding;
+        auto chg2  = changeCount;
+        updateStateWithSlice(s, rem2, last2, chg2);
+
+        currentPath.push_back(s);
+        dfs(t+1, currentPath, currentScore + sliceScore,
+            bestScore, bestPath, rem2, last2, nextLanding, chg2, neighborState);
+        currentPath.pop_back();
+    }
+}
+
+std::map<XY,double> DTCubeBuilder::makeBandwidthMap(int t) const {
+    std::map<XY,double> bw;
+    for (const auto& u : network.uavs) {
+        bw[{u.x, u.y}] = u.bandwidthAt(t);
+    }
+    return bw;
+}
+
+double DTCubeBuilder::computeSliceScore(const Slice& s) {
+    double total = 0.0;
+    for (const auto& L : s.lignes) total += L.score;
+    return total;
+}
+
+void DTCubeBuilder::updateStateWithSlice(const Slice& s,
+                                         std::map<int,double>& remaining,
+                                         std::map<int,XY>&    lastLanding,
+                                         std::map<int,int>&   changeCount)
+{
+    for (const auto& L : s.lignes) {
+        remaining[L.flowId] = std::max(0.0, remaining[L.flowId] - L.q);
+        if (!L.pathXY.empty()) {
+            auto [ex, ey] = L.pathXY.back();
+            auto last = lastLanding[L.flowId];
+            if (last.first != -1 && (last.first != ex || last.second != ey)) {
+                changeCount[L.flowId] += 1;
+            }
+            lastLanding[L.flowId] = {ex, ey};
+        }
+    }
+}
+
+bool DTCubeBuilder::allFinished(const std::map<int,double>& remaining) {
+    for (auto& kv : remaining) if (kv.second > 1e-9) return false;
+    return true;
+}
+
+Slice DTCubeBuilder::makeEmptySlice(int t) const {
+    Slice empty(t);
+    return empty;
+}

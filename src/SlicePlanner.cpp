@@ -4,7 +4,7 @@
 #include <iomanip>
 
 // ⚙️ 调试输出总开关
-#define DEBUG_SLICEPLANNER 1
+#define DEBUG_SLICEPLANNER 0
 
 using XY = std::pair<int,int>;
 
