@@ -337,7 +337,9 @@ std::vector<Ligne> LigneFinder::runAStarOnce(const std::set<XY>& banSet) const {
         }
 
         // 只在“严格更短”时加入；相同或更长一律不加
-        if (static_cast<int>(landed.distance) <= minDist) {
+        if (static_cast<int>(landed.distance) < minDist || 
+        (static_cast<int>(landed.distance) == minDist &&
+         std::abs(landed.q - vec.front().q) < 1e-6)) {
             vec.push_back(landed);
             if (LF_DEBUG) {
                 std::cout << "    [candidate-keep] score>=threshold & strictly-shorter"
