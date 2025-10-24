@@ -31,9 +31,6 @@ public:
     // 计算 Cube 的总得分（所有 Slice.totalScore 之和）
     double computeTotalScore();
 
-    // 导出完整输出表 (t, x, y, q)
-    std::vector<std::tuple<int,int,int,double>> exportOutput(int M) const;
-
     // 输出调试摘要
     std::string summary() const;
 };

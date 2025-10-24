@@ -146,10 +146,12 @@ net.uavs.push_back(UAV(21, 1, 4, 10, 1));
 net.uavs.push_back(UAV(22, 2, 4, 9, 2));
 net.uavs.push_back(UAV(23, 3, 4, 10, 3));
 net.uavs.push_back(UAV(24, 4, 4, 10, 4));
+
+    int currentTime = 0;
     // ✅ 3. 构建带宽矩阵
     std::map<XY,double> bw;
     for (const auto& u : net.uavs)
-        bw[{u.x, u.y}] = u.bandwidthAt(0);
+        bw[{u.x, u.y}] = u.bandwidthAt(currentTime);
 
     // ✅ 4. 打印带宽地图
     std::cout << "[DEBUG] 带宽矩阵 (t=0):\n";
@@ -177,7 +179,6 @@ net.uavs.push_back(UAV(24, 4, 4, 10, 4));
     std::map<int, int> changeCountMap = {{1, 0}, {2, 0}, {3, 0}};
     std::map<int, int> neighborStateMap = {{1, 0}, {2, 0}, {3, 0}};
     
-    int currentTime = 0;
     
     SlicePlanner planner(net, remainingData, lastLandingMap, nextLandingMap, 
                         changeCountMap, neighborStateMap, currentTime, bw);
@@ -214,9 +215,9 @@ net.uavs.push_back(UAV(24, 4, 4, 10, 4));
 }
 int main() {
 
-//    int test = runCube();
+    int test = runCube();
 
-    testSlicePlanner();
+//   testSlicePlanner();
 
 //    testLigneFinderSingleFl();
     return 0;

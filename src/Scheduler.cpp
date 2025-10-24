@@ -32,7 +32,9 @@ void Scheduler::run() {
 
     std::cout << "✅ DTCubeBuilder 完成：生成 " 
               << resultCube->slices.size() << " 个切片（应覆盖 0..T-1）\n";
-    
+              std::cout << "\n================= 📊 Scoring Summary =================\n";
+              std::cout << resultCube->summary() << std::endl;
+              std::cout << "=====================================================\n";
     std::cout << "=== 调度完成 ===\n";
 }
 
