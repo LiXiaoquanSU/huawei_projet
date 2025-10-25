@@ -28,9 +28,6 @@ public:
     // 添加一个 Slice
     void addSlice(const Slice& slice);
 
-    // 计算 Cube 的总得分（所有 Slice.totalScore 之和）
-    double computeTotalScore();
-
     // 输出调试摘要
     std::string summary() const;
 };

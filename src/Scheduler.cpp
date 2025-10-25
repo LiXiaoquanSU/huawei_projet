@@ -1,8 +1,11 @@
 #include "Scheduler.h"
 #include "DTCube.h"
+#include "CubeOptimizer.h"
 #include <algorithm>
 #include <iomanip>
 #include <map>
+#include <sstream>
+#include <cmath>
 #include <tuple>
 #include <vector>
 
@@ -18,7 +21,6 @@ void Scheduler::run() {
               << "，流数量: " << network.FN
               << "，时长 T=" << network.T << "\n";
 
-    // 如果 T 无效
     if (network.T <= 0) {
         std::cerr << "⚠️ 网络未配置有效的时间长度，跳过调度。\n";
         resultCube.reset();
@@ -26,15 +28,23 @@ void Scheduler::run() {
         return;
     }
 
+    // Step 1: 构建基础 DTCube
     DTCubeBuilder builder(network);
-    Cube best = builder.build();                 // 会填满 cube.slices
+    Cube best = builder.build();
     resultCube = std::move(best);
 
-    std::cout << "✅ DTCubeBuilder 完成：生成 " 
-              << resultCube->slices.size() << " 个切片（应覆盖 0..T-1）\n";
-              std::cout << "\n================= 📊 Scoring Summary =================\n";
-              std::cout << resultCube->summary() << std::endl;
-              std::cout << "=====================================================\n";
+    // Step 2: 优化 Cube
+    CubeOptimizer optimizer(network, *resultCube);
+    Cube optimized = optimizer.optimize();
+
+    // ✅ 用优化结果覆盖原始 Cube
+    resultCube = std::move(optimized);
+
+    // Step 3: 打印最终统计
+    std::cout << "\n================= 📊 Scoring Summary =================\n";
+    std::cout << resultCube->summary() << std::endl;
+    std::cout << "=====================================================\n";
+
     std::cout << "=== 调度完成 ===\n";
 }
 
@@ -75,6 +85,14 @@ void Scheduler::outputResult(std::ostream& out) const {
 
     static const std::vector<std::tuple<int, int, int, double>> emptyRecords;
 
+    auto formatQ = [](double value) {
+        std::ostringstream oss;
+        const double rounded = std::round(value * 10.0) / 10.0;
+        const bool isInteger = std::abs(rounded - std::round(rounded)) < 1e-6;
+        oss << std::fixed << std::setprecision(isInteger ? 0 : 1) << rounded;
+        return oss.str();
+    };
+
     for (const auto& flow : network.flows) {
         const auto it = flowRecords.find(flow.id);
         const auto& records = (it != flowRecords.end()) ? it->second : emptyRecords;
@@ -83,15 +101,15 @@ void Scheduler::outputResult(std::ostream& out) const {
         std::cout << "Flow " << flow.id << " records: " << records.size() << '\n';
 
         for (const auto& [t, x, y, q] : records) {
+            const auto formattedQ = formatQ(q);
             out << t << ' '
                 << x << ' '
                 << y << ' '
-                << std::fixed << std::setprecision(2) << q << '\n';
+                << formattedQ << '\n';
             std::cout << "  t=" << t << ", UAV(" << x << "," << y << "), q="
-                      << std::fixed << std::setprecision(2) << q << " Mbps\n";
+                      << formattedQ << " Mbps\n";
         }
     }
-
     out.flags(oldFlags);
     out.precision(oldPrecision);
 }

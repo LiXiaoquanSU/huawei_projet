@@ -9,7 +9,7 @@
 using XY = std::pair<int,int>;
 
 // ====== 日志开关（需要静默时改为 false 即可，不影响逻辑）======
-static constexpr bool LF_DEBUG = true;
+static constexpr bool LF_DEBUG = false;
 
 DTCubeBuilder::DTCubeBuilder(Network& net)
     : network(net), T(net.T) {}
@@ -91,8 +91,10 @@ void DTCubeBuilder::dfs(int t,
                   return computeSliceScore(a) > computeSliceScore(b);
               });
     const int BEAM = 20;
-    if ((int)candidates.size() > BEAM) candidates.resize(BEAM);
-
+    if ((int)candidates.size() > BEAM){
+        std::cout << "=== Slice候选人数>20!!! ===" << "t=" << t <<"BEAN=" << candidates.size() << std::endl;
+        candidates.resize(BEAM);
+    }
     // 3) 遍历候选
     for (const auto& s : candidates) {
         double sliceScore = computeSliceScore(s);

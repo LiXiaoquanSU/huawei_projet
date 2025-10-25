@@ -48,83 +48,41 @@ std::vector<Slice> SlicePlanner::planAllSlices() {
 
     std::vector<Slice> allSlices;
 
-    // ============ 1️⃣ 计算每个流的平均分并排序 ============
-    std::vector<std::pair<double, int>> flowScores; // (平均分, flowId)
-    
-#if DEBUG_SLICEPLANNER
-    std::cout << "\n-- [Computing flow average scores] --\n";
-#endif
+    // 依据当前剩余/带宽评估每条流，获取一组候选顺序
+    auto baseOrders = computeFlowOrder();
+    if (baseOrders.empty()) return allSlices;
 
-    for (auto& [fid, _] : remaining_) {
-        // 找到对应的 Flow 对象
-        const Flow* flowPtr = nullptr;
-        for (auto& f : network_.flows) {
-            if (f.id == fid) { 
-                flowPtr = &f; 
-                break; 
-            }
-        }
-        
-        if (!flowPtr) continue;
+    const auto& baseFlowOrder = baseOrders.front();
+    if (baseFlowOrder.empty()) return allSlices;
 
-        // 获取流的上下文信息
-        double remain   = remaining_.count(fid)     ? remaining_.at(fid)     : -1;
-        XY prevLanding  = lastLanding_.count(fid)   ? lastLanding_.at(fid)   : XY{-1,-1};
-        XY nextLanding  = nextLanding_.count(fid)   ? nextLanding_.at(fid)   : XY{-1,-1};
-        int change      = changeCount_.count(fid)   ? changeCount_.at(fid)   : 0;
-        int neighbor    = neighborState_.count(fid) ? neighborState_.at(fid) : 0;
-
-        // 创建 LigneFinder 并获取候选路径
-        LigneFinder finder(network_, *flowPtr, t_,
-                           bw_,
-                           prevLanding,
-                           nextLanding,
-                           change,
-                           neighbor,
-                           remain);
-
-        auto lignes = finder.runAStarOnce();
-        
-        double avgScore = 0.0;
-        if (!lignes.empty()) {
-            double totalScore = 0.0;
-            for (const auto& ligne : lignes) {
-                totalScore += ligne.score;
-            }
-            avgScore = totalScore / lignes.size();
-        }
-        
-        flowScores.emplace_back(avgScore, fid);
-        
-#if DEBUG_SLICEPLANNER
-        std::cout << "  Flow#" << fid 
-                  << "  candidates=" << lignes.size()
-                  << "  avgScore=" << std::fixed << std::setprecision(3) << avgScore << "\n";
-#endif
+    std::vector<std::vector<int>> flowOrders;
+    if (baseFlowOrder.size() > 4) {
+        flowOrders = baseOrders;
+    } else {
+        // 保留的仅是有路径的流，因此全排列仅在这些 ID 上进行
+        std::vector<int> flowIds = baseFlowOrder;
+        std::sort(flowIds.begin(), flowIds.end());
+        do {
+            flowOrders.push_back(flowIds);
+        } while (std::next_permutation(flowIds.begin(), flowIds.end()));
     }
 
-    // 按平均分从高到低排序
-    std::sort(flowScores.begin(), flowScores.end(), 
-              [](const auto& a, const auto& b) { return a.first > b.first; });
-
-    // 提取排序后的流ID顺序
-    std::vector<int> flowOrder;
-    for (const auto& [score, fid] : flowScores) {
-        flowOrder.push_back(fid);
-    }
-
-#if DEBUG_SLICEPLANNER
-    std::cout << "\n-- [Final flow order (high to low score)] --\n";
-    for (size_t i = 0; i < flowOrder.size(); ++i) {
-        std::cout << "  #" << (i+1) << " Flow#" << flowOrder[i] 
-                  << " avgScore=" << std::fixed << std::setprecision(3) << flowScores[i].first << "\n";
-    }
-#endif
-
-    // ============ 2️⃣ 使用固定顺序调用递归规划 ============
+    // ============ 2️⃣ 使用固定顺序们调用递归规划 ============
     auto initialBw = bw_;
     Slice initSlice(t_);
-    recursivePlan(0, flowOrder, initialBw, initSlice, allSlices);
+    if (flowOrders.empty()) return allSlices;
+    for (const auto& flowOrder : flowOrders) {
+        recursivePlan(0, flowOrder, initialBw, initSlice, allSlices);
+    }
+
+    // ============ 3️⃣ 去除空 Slice 与返回 ============
+    // bool hasNonEmptySlice = std::any_of(allSlices.begin(), allSlices.end(),
+    //                                     [](const Slice& s) { return !s.lignes.empty(); });
+    // if (hasNonEmptySlice) {
+    //    allSlices.erase(std::remove_if(allSlices.begin(), allSlices.end(),
+    //                                     [](const Slice& s) { return s.lignes.empty(); }),
+    //                     allSlices.end());
+    // }
 
 #if DEBUG_SLICEPLANNER
     std::cout << "\n========== [SlicePlanner::planAllSlices] END ==========\n";
@@ -145,11 +103,102 @@ std::vector<Slice> SlicePlanner::planAllSlices() {
     return allSlices;
 }
 
+std::vector<std::vector<int>> SlicePlanner::computeFlowOrder() const {
+    // ============ 1️⃣ 计算每个流的平均分并排序 ============
+    std::vector<std::pair<double, int>> flowScores; // (平均分, flowId)
+
+#if DEBUG_SLICEPLANNER
+    std::cout << "\n-- [Computing flow average scores] --\n";
+#endif
+
+    // 计算每个流的平均分
+    for (const auto& [fid, _] : remaining_) {
+        // 找到对应的 Flow 对象
+        const Flow* flowPtr = nullptr;
+        for (auto& f : network_.flows) {
+            if (f.id == fid) {
+                flowPtr = &f;
+                break;
+            }
+        }
+
+        if (!flowPtr) continue;
+
+        // 获取流的上下文信息
+        double remain   = remaining_.count(fid)     ? remaining_.at(fid)     : -1;
+        XY prevLanding  = lastLanding_.count(fid)   ? lastLanding_.at(fid)   : XY{-1,-1};
+        XY nextLanding  = nextLanding_.count(fid)   ? nextLanding_.at(fid)   : XY{-1,-1};
+        int change      = changeCount_.count(fid)   ? changeCount_.at(fid)   : 0;
+        int neighbor    = neighborState_.count(fid) ? neighborState_.at(fid) : 0;
+
+        // 创建 LigneFinder 并获取候选路径
+        LigneFinder finder(network_, *flowPtr, t_,
+                           bw_,
+                           prevLanding,
+                           nextLanding,
+                           change,
+                           neighbor,
+                           remain);
+
+        auto lignes = finder.runAStarOnce();
+
+        if (lignes.empty())
+            continue;
+
+        double totalScore = 0.0;
+        for (const auto& ligne : lignes) {
+            totalScore += ligne.score;
+        }
+        double avgScore = (lignes.empty() ? 0.0 : totalScore / lignes.size());
+
+        if (avgScore <= 0.0)  // 过滤掉得分为0（无可落地价值）的流
+            continue;
+
+        flowScores.emplace_back(avgScore, fid);
+
+#if DEBUG_SLICEPLANNER
+        std::cout << "  Flow#" << fid
+                  << "  candidates=" << lignes.size()
+                  << "  avgScore=" << std::fixed << std::setprecision(3) << avgScore << "\n";
+#endif
+    }
+
+    if (flowScores.empty()) {
+        return {};
+    }
+
+    // 按平均分从高到低排序
+    std::sort(flowScores.begin(), flowScores.end(),
+              [](const auto& a, const auto& b) { return a.first > b.first; });
+
+    std::vector<std::vector<int>> flowOrders;
+    flowOrders.reserve(1);
+
+    // 顺序1：平均分由高到低
+    std::vector<int> highToLow;
+    highToLow.reserve(flowScores.size());
+    for (const auto& [score, fid] : flowScores) {
+        highToLow.push_back(fid);
+    }
+    flowOrders.push_back(std::move(highToLow));
+
+#if DEBUG_SLICEPLANNER
+    std::cout << "\n-- [Final flow order (high to low score)] --\n";
+    const auto& flowOrderDbg = flowOrders.front();
+    for (size_t i = 0; i < flowOrderDbg.size(); ++i) {
+        std::cout << "  #" << (i+1) << " Flow#" << flowOrderDbg[i]
+                  << " avgScore=" << std::fixed << std::setprecision(3) << flowScores[i].first << "\n";
+    }
+#endif
+
+    return flowOrders;
+}
+
 /**
  * @brief 递归生成 Slice 组合
  */
 void SlicePlanner::recursivePlan(int index,
-                                 std::vector<int>& flowOrder,
+                                 const std::vector<int>& flowOrder,
                                  std::map<XY, double> currentBw,
                                  Slice currentSlice,
                                  std::vector<Slice>& allSlices)
@@ -228,6 +277,8 @@ void SlicePlanner::recursivePlan(int index,
         }
         if (!duplicate)
             allSlices.push_back(currentSlice);
+        // 继续尝试后续 flow，允许后续仍然调度
+        recursivePlan(index+1, flowOrder, currentBw, currentSlice, allSlices);
         return;
     }
 

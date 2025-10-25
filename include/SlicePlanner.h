@@ -21,6 +21,8 @@ public:
     std::vector<Slice> planAllSlices();
 
 private:
+    std::vector<std::vector<int>> computeFlowOrder() const;
+
     const Network& network_;
     std::map<int, double> remaining_;
     std::map<int, XY> lastLanding_;
@@ -31,7 +33,7 @@ private:
     std::map<XY, double> bw_;
 
     void recursivePlan(int index,
-                       std::vector<int>& flowOrder,
+                       const std::vector<int>& flowOrder,
                        std::map<XY, double> currentBw,
                        Slice currentSlice,
                        std::vector<Slice>& allSlices);
